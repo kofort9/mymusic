@@ -31,6 +31,9 @@ jobs:
     
     - name: Check formatting
       run: npm run format:check
+
+    - name: Security audit
+      run: npm audit --production --audit-level=high
     
     - name: Run tests
       run: npm run test:coverage
