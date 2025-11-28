@@ -6,6 +6,9 @@
   "bin": {
     "spotifydj": "./bin/spotifydj"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "prestart": "node tools/preflight.js",
     "start": "ts-node src/main.ts",

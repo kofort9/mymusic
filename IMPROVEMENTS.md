@@ -20,3 +20,4 @@
 
 - Library refresh automation is partial: there is now a `refresh:library` script and `r` hotkey to reseed from `Liked_Songs.csv`, but Exportify pull and SongBPM backfill remain manual.
 - Coverage debt: `audioProcessor.ts`, `spotifyProvider.ts`, `main.ts`, and `refreshLibrary.ts` remain low on branch coverage; add tests for provider chain edge cases, Spotify error paths, main-loop error handling, and refresh CLI failures.
+- Add a first-run setup wizard: detect empty/no-library state, prompt to export liked songs via Exportify, drop `Liked_Songs.csv`, and optionally collect parse.bot API key to enable SongBPM fallback.
