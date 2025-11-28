@@ -363,5 +363,23 @@ describe('Mixing Engine', () => {
       // Should be SMOOTH since it's checked first
       expect(matches[0].shiftType).toBe(ShiftType.SMOOTH);
     });
+
+    test('includes non-harmonic tracks when skipHarmonicFilter is true', () => {
+      const incompatible: LibraryTrack[] = [
+        {
+          track_id: 'spotify:track:xx',
+          track_name: 'Off-key',
+          artist: 'Artist',
+          camelot_key: '1A',
+          bpm: 128,
+        },
+      ];
+
+      const keys = getCompatibleKeys(currentTrack.camelot_key);
+      const matches = filterMatches(currentTrack, incompatible, keys, true);
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0].shiftType).toBe(ShiftType.RHYTHMIC_BREAKER);
+    });
   });
 });

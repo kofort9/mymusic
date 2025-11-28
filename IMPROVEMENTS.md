@@ -7,6 +7,11 @@
 - Centralized Prisma client with shared disconnect + process exit hook to avoid multiple long-lived instances.
 - Normalized track IDs in tests to use `spotify:track:` URIs to mirror runtime contracts.
 - Legacy scripts updated to reuse shared Prisma client to prevent handle leaks.
+- **Productionization**: Implemented structured logging (Winston), global error handling, and health check endpoints.
+- **Resilience**: Added Circuit Breakers for Spotify and SongBPM APIs.
+- **Stability**: Implemented Rate Limiting (Token Bucket) for API providers.
+- **Data Quality**: Added Zod schema validation for audio features.
+- **CI/CD**: Added GitHub Actions workflow for automated build and linting.
 
 ## Bugs
 

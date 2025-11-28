@@ -8,9 +8,11 @@ import { PhraseCounter, renderNarrowWarning, renderTrainBoard } from './display'
 import { CurrentTrack, MatchedTrack, ShiftType, LibraryTrack } from './types';
 import { refreshLibrary } from './refreshLibrary';
 import * as readline from 'readline';
-import { Logger } from './logger';
+import { logger, getLogs } from './utils/logger';
 import { runFlipClockAnimation } from './animation';
 import { disconnectPrisma } from './dbClient';
+import { runFirstRunWizard } from './setupWizard';
+import { startServer } from './server';
 
 const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds default
 const MAX_POLL_INTERVAL = 10000; // Cap at 10 seconds to detect skips
@@ -25,37 +27,40 @@ export function isTerminalTooNarrow(width?: number): boolean {
 }
 
 async function main() {
-  if (process.stdin.setRawMode) {
-    process.stdin.setRawMode(true);
-  }
-  readline.emitKeypressEvents(process.stdin);
-
   const isDebugMode = process.argv.includes('--debug');
 
   if (isDebugMode) {
-    Logger.log('Debug mode enabled.');
+    logger.info('Debug mode enabled.');
   }
 
-  Logger.log('Initializing Real-Time DJ Assistant...');
+  logger.info('Initializing Real-Time DJ Assistant...');
+  startServer();
 
   let library: LibraryTrack[] = [];
   try {
     library = await loadLibrary();
-    Logger.log(`Library loaded: ${library.length} tracks.`);
+    logger.info(`Library loaded: ${library.length} tracks.`);
   } catch (error) {
-    Logger.error('Failed to load library:', error);
+    logger.error('Failed to load library:', { error });
     process.exit(1);
   }
 
+  await runFirstRunWizard(library.length);
+
   try {
     await authenticate();
-    Logger.log('Authenticated with Spotify.');
+    logger.info('Authenticated with Spotify.');
   } catch (error) {
-    Logger.error('Authentication failed. Check your Spotify credentials and try again.', error);
+    logger.error('Authentication failed. Check your Spotify credentials and try again.', { error });
     console.error('\nAuthentication failed. Ensure SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI are set in .env and re-run `npm start`.');
     console.error('If prompted, complete the browser login to Spotify so tokens.json can be saved locally.\n');
     process.exit(1);
   }
+
+  if (process.stdin.setRawMode) {
+    process.stdin.setRawMode(true);
+  }
+  readline.emitKeypressEvents(process.stdin);
 
   let currentTrack: CurrentTrack | null = null;
   let recommendations: MatchedTrack[] = [];
@@ -81,8 +86,9 @@ async function main() {
     if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
     if (pollTimeout) clearTimeout(pollTimeout);
     if (uiInterval) clearInterval(uiInterval);
+    process.stdin.removeListener('keypress', onKeypress);
     process.stdout.write('\x1b[?25h'); // Show cursor
-    Logger.log('\nGoodbye!');
+    logger.info('\nGoodbye!');
   };
 
   // Async cleanup for graceful shutdown
@@ -156,7 +162,7 @@ async function main() {
   };
 
   // Keypress Handler
-  process.stdin.on('keypress', (str, key) => {
+  const onKeypress = (str: string, key: readline.Key) => {
     if (key.ctrl && key.name === 'c') {
       if (showExitWarning) {
         void gracefulShutdown();
@@ -190,10 +196,12 @@ async function main() {
       showHelp = !showHelp;
       renderCurrentState();
     }
-  });
+  };
+
+  process.stdin.on('keypress', onKeypress);
 
   const renderCurrentState = () => {
-    const logs = isDebugMode ? Logger.getLogs() : [];
+    const logs = isDebugMode ? getLogs() : [];
 
     // Check minimum terminal width
     const terminalWidth = process.stdout.columns || MIN_TERMINAL_WIDTH;
@@ -303,7 +311,7 @@ async function main() {
                     null,
                     showExitWarning,
                     debugMessage,
-                    isDebugMode ? Logger.getLogs() : [],
+                    isDebugMode ? getLogs() : [],
                     selectedCategory,
                     scrollOffset,
                     showHelp
@@ -402,8 +410,21 @@ async function main() {
 }
 
 if (require.main === module) {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  main();
+  main().catch((error) => {
+    logger.error('Unhandled error in main loop:', { error });
+    process.exit(1);
+  });
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', { promise, reason });
+  // Recommended: restart the process?
+  // process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', { error });
+  process.exit(1);
+});
 
 export { main };

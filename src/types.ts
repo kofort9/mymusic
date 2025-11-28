@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type TrackID = string;
 export type CamelotCode = string; // e.g., "1A", "12B"
 
@@ -9,19 +11,21 @@ export enum ShiftType {
   RHYTHMIC_BREAKER = 'Rhythmic/Dead-End Breaker',
 }
 
-export interface AudioFeatures {
-  tempo: number; // BPM
-  key: number; // 0-11
-  mode: number; // 0 = Minor, 1 = Major
-  energy?: number;
-  valence?: number;
-  danceability?: number;
-  acousticness?: number;
-  instrumentalness?: number;
-  liveness?: number;
-  speechiness?: number;
-  time_signature?: number; // Usually 4 for 4/4 time
-}
+export const AudioFeaturesSchema = z.object({
+  tempo: z.number().min(0).max(300), // BPM range check
+  key: z.number().min(0).max(11), // 0-11
+  mode: z.number().min(0).max(1), // 0 or 1
+  energy: z.number().min(0).max(1).optional(),
+  valence: z.number().min(0).max(1).optional(),
+  danceability: z.number().min(0).max(1).optional(),
+  acousticness: z.number().min(0).max(1).optional(),
+  instrumentalness: z.number().min(0).max(1).optional(),
+  liveness: z.number().min(0).max(1).optional(),
+  speechiness: z.number().min(0).max(1).optional(),
+  time_signature: z.number().min(1).max(12).optional(),
+});
+
+export type AudioFeatures = z.infer<typeof AudioFeaturesSchema>;
 
 export interface LibraryTrack {
   track_id: TrackID;

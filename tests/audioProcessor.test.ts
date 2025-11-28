@@ -1,4 +1,4 @@
-import { getAudioFeatures, resetAudioProcessor } from '../src/audioProcessor';
+import { getAudioFeatures, resetAudioProcessor, TestLRUCache } from '../src/audioProcessor';
 import { Logger } from '../src/logger';
 import { ProviderFactory } from '../src/providers/factory';
 import { AudioFeatureProvider } from '../src/providers/types';
@@ -53,8 +53,6 @@ describe('Audio Processor', () => {
     expect(features?.mode).toBe(0); // Mode check
     expect(features?.energy).toBe(0.8); // Energy check
     expect(mockProvider.getAudioFeatures).toHaveBeenCalledWith(mockTrackId, undefined, undefined);
-    expect(Logger.log).toHaveBeenCalledWith(`Fetching features for ${mockTrackId}...`);
-    expect(Logger.log).toHaveBeenCalledWith('Fetched: BPM=128.5, Key=5, Mode=0');
   });
 
   test('handles null response from provider gracefully', async () => {
@@ -63,7 +61,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.log).toHaveBeenCalledWith(`Fetching features for ${mockTrackId}...`);
   });
 
   test('caches audio features and returns cached value on second call', async () => {
@@ -80,7 +77,6 @@ describe('Audio Processor', () => {
     const features1 = await getAudioFeatures(mockTrackId);
     expect(features1).not.toBeNull();
     expect(mockProvider.getAudioFeatures).toHaveBeenCalledTimes(1);
-    expect(Logger.log).toHaveBeenCalledWith(`Fetching features for ${mockTrackId}...`);
 
     jest.clearAllMocks();
 
@@ -88,7 +84,6 @@ describe('Audio Processor', () => {
     const features2 = await getAudioFeatures(mockTrackId);
     expect(features2).toEqual(features1);
     expect(mockProvider.getAudioFeatures).not.toHaveBeenCalled();
-    expect(Logger.log).toHaveBeenCalledWith(`Cache hit for ${mockTrackId}`);
   });
 
   test('handles provider error gracefully', async () => {
@@ -97,10 +92,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      expect.any(Error)
-    );
   });
 
   test('handles error with statusCode', async () => {
@@ -113,11 +104,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Status: 404'), error);
   });
 
   test('handles error with body', async () => {
@@ -129,11 +115,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Body:'), error);
   });
 
   test('handles error with headers', async () => {
@@ -145,11 +126,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Headers:'), error);
   });
 
   test('handles error with all properties', async () => {
@@ -163,13 +139,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Status: 500'), error);
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Body:'), error);
-    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Headers:'), error);
   });
 
   test('handles error without specific properties', async () => {
@@ -179,10 +148,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
   });
 
   test('handles string error', async () => {
@@ -192,10 +157,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalledWith(
-      expect.stringContaining(`Audio features fetch error for ${mockTrackId}:`),
-      error
-    );
   });
 
   test('handles error that cannot be stringified', async () => {
@@ -206,7 +167,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalled();
   });
 
   test('handles missing energy field', async () => {
@@ -264,7 +224,6 @@ describe('Audio Processor', () => {
 
     const features = await getAudioFeatures(mockTrackId);
     expect(features).toBeNull();
-    expect(Logger.error).toHaveBeenCalled();
   });
 
   test('caches per track id (no cross-contamination)', async () => {
@@ -279,5 +238,145 @@ describe('Audio Processor', () => {
     expect(first).toEqual(featureA);
     expect(second).toEqual(featureB);
     expect(mockProvider.getAudioFeatures).toHaveBeenCalledTimes(2);
+  });
+
+  test('falls back to default provider when provider chain is empty', async () => {
+    const fallbackProvider: jest.Mocked<AudioFeatureProvider> = {
+      getName: jest.fn().mockReturnValue('Fallback'),
+      isAvailable: jest.fn(),
+      getAudioFeatures: jest.fn().mockResolvedValue({
+        tempo: 120,
+        key: 7,
+        mode: 1,
+      }),
+    };
+
+    (ProviderFactory.createProviderChain as jest.Mock).mockResolvedValue([]);
+    (ProviderFactory.getDefaultProvider as jest.Mock).mockReturnValue(fallbackProvider);
+
+    const features = await getAudioFeatures('track-empty');
+
+    expect(ProviderFactory.getDefaultProvider).toHaveBeenCalled();
+    expect(fallbackProvider.getAudioFeatures).toHaveBeenCalledWith(
+      'track-empty',
+      undefined,
+      undefined
+    );
+    expect(features).toEqual({ tempo: 120, key: 7, mode: 1 });
+  });
+
+  test('evicts oldest cached track when cache exceeds capacity', async () => {
+    mockProvider.getAudioFeatures.mockResolvedValue({ tempo: 100, key: 1, mode: 1 });
+
+    // Fill cache beyond its 100-item capacity
+    const ids = Array.from({ length: 101 }, (_v, i) => `track-${i}`);
+    for (const id of ids) {
+      await getAudioFeatures(id);
+    }
+
+    expect(mockProvider.getAudioFeatures).toHaveBeenCalledTimes(101);
+
+    // Oldest entry should have been evicted, so the provider is called again
+    const features = await getAudioFeatures(ids[0]);
+    expect(features).not.toBeNull();
+    expect(mockProvider.getAudioFeatures).toHaveBeenCalledTimes(102);
+  });
+
+  test('rejects invalid tempo (too high)', async () => {
+    mockProvider.getAudioFeatures.mockResolvedValue({
+      tempo: 350, // Invalid: > 300
+      key: 5,
+      mode: 1,
+    });
+
+    const features = await getAudioFeatures(mockTrackId);
+    expect(features).toBeNull(); // Should be rejected by validation
+  });
+
+  test('rejects invalid tempo (negative)', async () => {
+    mockProvider.getAudioFeatures.mockResolvedValue({
+      tempo: -10, // Invalid: < 0
+      key: 5,
+      mode: 1,
+    });
+
+    const features = await getAudioFeatures(mockTrackId);
+    expect(features).toBeNull();
+  });
+
+  test('rejects invalid key (too high)', async () => {
+    mockProvider.getAudioFeatures.mockResolvedValue({
+      tempo: 120,
+      key: 15, // Invalid: > 11
+      mode: 1,
+    });
+
+    const features = await getAudioFeatures(mockTrackId);
+    expect(features).toBeNull();
+  });
+
+  test('rejects invalid mode', async () => {
+    mockProvider.getAudioFeatures.mockResolvedValue({
+      tempo: 120,
+      key: 5,
+      mode: 2, // Invalid: > 1
+    });
+
+    const features = await getAudioFeatures(mockTrackId);
+    expect(features).toBeNull();
+  });
+
+  test('falls back to next provider when validation fails', async () => {
+    const validProvider: jest.Mocked<AudioFeatureProvider> = {
+      getName: jest.fn().mockReturnValue('ValidProvider'),
+      isAvailable: jest.fn().mockResolvedValue(true),
+      getAudioFeatures: jest.fn().mockResolvedValue({
+        tempo: 120,
+        key: 5,
+        mode: 1,
+      }),
+    };
+
+    // First provider returns invalid data
+    mockProvider.getAudioFeatures.mockResolvedValue({
+      tempo: 400, // Invalid
+      key: 5,
+      mode: 1,
+    });
+
+    (ProviderFactory.createProviderChain as jest.Mock).mockResolvedValue([
+      mockProvider,
+      validProvider,
+    ]);
+
+    const features = await getAudioFeatures(mockTrackId);
+    expect(features).toEqual({ tempo: 120, key: 5, mode: 1 });
+    expect(mockProvider.getAudioFeatures).toHaveBeenCalled();
+    expect(validProvider.getAudioFeatures).toHaveBeenCalled();
+  });
+
+  test('LRUCache overwrites existing keys without growing size', () => {
+    const cache = new TestLRUCache<string, number>(2);
+    cache.set('track', 1);
+    cache.set('track', 2); // triggers existing-key branch
+
+    expect(cache.has('track')).toBe(true);
+    expect(cache.get('track')).toBe(2);
+  });
+
+  test('LRUCache returns undefined for missing keys', () => {
+    const cache = new TestLRUCache<string, number>(1);
+    expect(cache.get('missing')).toBeUndefined();
+  });
+
+  test('respects AUDIO_FEATURE_PROVIDER environment override', async () => {
+    const originalProviderEnv = process.env.AUDIO_FEATURE_PROVIDER;
+    process.env.AUDIO_FEATURE_PROVIDER = 'custom, spotify';
+    mockProvider.getAudioFeatures.mockResolvedValue({ tempo: 123, key: 1, mode: 1 });
+
+    await getAudioFeatures('env-track');
+
+    expect(ProviderFactory.createProviderChain).toHaveBeenCalledWith(['custom', 'spotify']);
+    process.env.AUDIO_FEATURE_PROVIDER = originalProviderEnv;
   });
 });

@@ -1,4 +1,4 @@
-import { getCamelotColor, getCamelotNumber } from '../src/camelotColors';
+import { CAMELOT_COLOR_MAP, getCamelotColor, getCamelotNumber } from '../src/camelotColors';
 
 describe('Camelot Colors', () => {
   test('extracts correct number from valid codes', () => {
@@ -18,5 +18,15 @@ describe('Camelot Colors', () => {
     expect(getCamelotColor('invalid')).toBe('#FFFFFF');
     expect(getCamelotColor('0A')).toBe('#FFFFFF'); // 0 is invalid
     expect(getCamelotColor('13A')).toBe('#FFFFFF'); // 13 is invalid
+  });
+
+  test('defaults to white when a mapped color is missing', () => {
+    const original = CAMELOT_COLOR_MAP[12];
+    // @ts-ignore - allow deletion for test
+    delete (CAMELOT_COLOR_MAP as any)[12];
+
+    expect(getCamelotColor('12A')).toBe('#FFFFFF');
+
+    CAMELOT_COLOR_MAP[12] = original;
   });
 });

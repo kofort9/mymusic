@@ -98,6 +98,11 @@ describe('Auth', () => {
     });
   });
 
+  test('proxy set forwards properties to the spotifyApi instance', () => {
+    (spotifyApi as any).customField = 'hello';
+    expect((mockSpotifyApi as any).customField).toBe('hello');
+  });
+
   describe('authenticate', () => {
     test('loads saved tokens successfully when valid', async () => {
       const tokens = {
@@ -167,6 +172,46 @@ describe('Auth', () => {
       await expect(authPromise).rejects.toThrow('Missing authorization code');
       expect(mockRes.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'text/html' });
       expect(mockServer.close).toHaveBeenCalled();
+    });
+
+    test('handles OAuth callback success and saves tokens', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      mockSpotifyApi.authorizationCodeGrant.mockResolvedValue({
+        body: { access_token: 'access', refresh_token: 'refresh' },
+      });
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback?code=granted' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+      await authPromise;
+
+      expect(mockSpotifyApi.setAccessToken).toHaveBeenCalledWith('access');
+      expect(mockSpotifyApi.setRefreshToken).toHaveBeenCalledWith('refresh');
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        TOKEN_PATH,
+        JSON.stringify({ access_token: 'access', refresh_token: 'refresh' }, null, 2)
+      );
+      expect(Logger.log).toHaveBeenCalledWith('Authentication successful! Tokens saved.');
+    });
+
+    test('handles authorization code grant failure in callback', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      mockSpotifyApi.authorizationCodeGrant.mockRejectedValue(new Error('grant failed'));
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback?code=bad' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+      await expect(authPromise).rejects.toThrow('grant failed');
     });
 
     test('refreshes token when expired', async () => {

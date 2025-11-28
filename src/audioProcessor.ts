@@ -1,5 +1,5 @@
-import { AudioFeatures, TrackID } from './types';
-import { Logger } from './logger';
+import { AudioFeatures, TrackID, AudioFeaturesSchema } from './types';
+import { logger } from './utils/logger';
 import { ProviderFactory } from './providers/factory';
 import { AudioFeatureProvider } from './providers/types';
 
@@ -43,6 +43,9 @@ class LRUCache<K, V> {
   }
 }
 
+// Exported for targeted cache behavior tests
+export { LRUCache as TestLRUCache };
+
 let featureCache = new LRUCache<TrackID, AudioFeatures>(100);
 let providers: AudioFeatureProvider[] | null = null;
 
@@ -67,7 +70,7 @@ export async function getAudioFeatures(
 ): Promise<AudioFeatures | null> {
   // Return cached if available
   if (featureCache.has(trackId)) {
-    Logger.log(`Cache hit for ${trackId}`);
+    logger.info(`Cache hit for ${trackId}`);
     return featureCache.get(trackId)!;
   }
 
@@ -80,7 +83,7 @@ export async function getAudioFeatures(
     providers = await ProviderFactory.createProviderChain(providerNames);
 
     if (providers.length === 0) {
-      Logger.error('No audio feature providers available!');
+      logger.error('No audio feature providers available!');
       // Fallback to Spotify
       const spotifyProvider = ProviderFactory.getDefaultProvider();
       providers = [spotifyProvider];
@@ -90,11 +93,17 @@ export async function getAudioFeatures(
   // Try each provider in order
   for (const provider of providers) {
     try {
-      Logger.log(`Fetching features for ${trackId}...`);
+      logger.info(`Fetching features for ${trackId}...`);
       const features = await provider.getAudioFeatures(trackId, trackName, artist);
 
       if (features) {
-        Logger.log(`Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}`);
+        const validation = AudioFeaturesSchema.safeParse(features);
+        if (!validation.success) {
+          logger.error(`Validation failed for ${trackId}`, { errors: validation.error.format() });
+          continue; // Try next provider
+        }
+
+        logger.info(`Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}`);
         featureCache.set(trackId, features);
         return features;
       }
@@ -113,7 +122,7 @@ export async function getAudioFeatures(
         }
       }
 
-      Logger.error(`Audio features fetch error for ${trackId}:${errorDetails}`, error);
+      logger.error(`Audio features fetch error for ${trackId}:${errorDetails}`, { error });
       continue; // Try next provider
     }
   }

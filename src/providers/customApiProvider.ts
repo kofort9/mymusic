@@ -1,6 +1,18 @@
 import { AudioFeatures, TrackID } from '../types';
-import { Logger } from '../logger';
+import { logger } from '../utils/logger';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
+import { RateLimiter } from '../utils/RateLimiter';
 import { AudioFeatureProvider } from './types';
+
+const songBpmBreaker = new CircuitBreaker('SongBPM', {
+  failureThreshold: 5,
+  resetTimeout: 60000,
+});
+
+const songBpmLimiter = new RateLimiter('SongBPM', {
+  tokensPerInterval: 2,
+  interval: 1000, // 2 requests per second (conservative)
+});
 
 /**
  * SongBPM API Response Types
@@ -122,15 +134,15 @@ export class CustomApiProvider implements AudioFeatureProvider {
 
   async isAvailable(): Promise<boolean> {
     if (!this.API_KEY) {
-      Logger.error(`[${this.getName()}] API key not configured. Set CUSTOM_API_KEY in .env`);
+      logger.error(`[${this.getName()}] API key not configured. Set CUSTOM_API_KEY in .env`);
       return false;
     }
 
     try {
-      Logger.log(`[${this.getName()}] API configured and ready`);
+      logger.info(`[${this.getName()}] API configured and ready`);
       return true;
     } catch (error) {
-      Logger.error(`[${this.getName()}] Availability check failed:`, error);
+      logger.error(`[${this.getName()}] Availability check failed:`, { error });
       return false;
     }
   }
@@ -139,29 +151,32 @@ export class CustomApiProvider implements AudioFeatureProvider {
    * Make an API request to the SongBPM parse.bot endpoint
    */
   private async makeRequest<T>(endpoint: string, body: Record<string, string>): Promise<T> {
-    const url = `${this.API_BASE_URL}/${endpoint}`;
+    await songBpmLimiter.waitForToken();
+    return songBpmBreaker.execute(async () => {
+      const url = `${this.API_BASE_URL}/${endpoint}`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.API_KEY,
-      },
-      body: JSON.stringify(body),
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': this.API_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json() as Promise<T>;
     });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
   }
 
   /**
    * Step 1: Fetch search results HTML from SongBPM
    */
   async fetchSearchResults(query: string): Promise<string> {
-    Logger.log(`[${this.getName()}] Searching for: ${query}`);
+    logger.info(`[${this.getName()}] Searching for: ${query}`);
     const response = await this.makeRequest<SongBpmSearchResponse>('fetch_search_results', {
       query,
     });
@@ -182,7 +197,7 @@ export class CustomApiProvider implements AudioFeatureProvider {
    * Step 3: Fetch the track page HTML
    */
   async fetchTrackPage(trackUrl: string): Promise<string> {
-    Logger.log(`[${this.getName()}] Fetching track page: ${trackUrl}`);
+    logger.info(`[${this.getName()}] Fetching track page: ${trackUrl}`);
     const response = await this.makeRequest<SongBpmTrackPageResponse>('fetch_track_page', {
       track_url: trackUrl,
     });
@@ -213,14 +228,14 @@ export class CustomApiProvider implements AudioFeatureProvider {
     try {
       // Build search query from track name and artist
       if (!trackName && !artist) {
-        Logger.error(
+        logger.error(
           `[${this.getName()}] Track name or artist required for SongBPM lookup (trackId: ${trackId})`
         );
         return null;
       }
 
       const query = [artist, trackName].filter(Boolean).join(' ');
-      Logger.log(`[${this.getName()}] Looking up features for: ${query}`);
+      logger.info(`[${this.getName()}] Looking up features for: ${query}`);
 
       // Step 1: Search for the track
       const searchHtml = await this.fetchSearchResults(query);
@@ -229,7 +244,7 @@ export class CustomApiProvider implements AudioFeatureProvider {
       const trackUrl = await this.extractTrackUrl(searchHtml);
 
       if (!trackUrl) {
-        Logger.error(`[${this.getName()}] No track found for query: ${query}`);
+        logger.error(`[${this.getName()}] No track found for query: ${query}`);
         return null;
       }
 
@@ -242,7 +257,7 @@ export class CustomApiProvider implements AudioFeatureProvider {
       // Parse musical key to key number and mode
       const keyInfo = parseMusicalKey(metadata.musical_key);
       if (!keyInfo) {
-        Logger.error(`[${this.getName()}] Failed to parse musical key: ${metadata.musical_key}`);
+        logger.error(`[${this.getName()}] Failed to parse musical key: ${metadata.musical_key}`);
         return null;
       }
 
@@ -256,13 +271,13 @@ export class CustomApiProvider implements AudioFeatureProvider {
         time_signature: timeSignature,
       };
 
-      Logger.log(
+      logger.info(
         `[${this.getName()}] Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}, TimeSig=${features.time_signature}`
       );
 
       return features;
     } catch (error: unknown) {
-      Logger.error(`[${this.getName()}] Failed to get audio features:`, error);
+      logger.error(`[${this.getName()}] Failed to get audio features:`, { error });
       return null;
     }
   }

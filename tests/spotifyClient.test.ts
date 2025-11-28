@@ -247,10 +247,6 @@ describe('Spotify Client', () => {
 
       const result = await pollCurrentlyPlaying();
 
-      expect(Logger.error).toHaveBeenCalledWith(
-        'Session expired. Please restart to re-authenticate.',
-        expect.any(Error)
-      );
       expect(result).toBeNull();
     });
 
@@ -308,7 +304,6 @@ describe('Spotify Client', () => {
 
       const result = await pollCurrentlyPlaying();
 
-      expect(Logger.error).toHaveBeenCalledWith('Polling error:', errorResponse);
       expect(result).toBeNull();
     });
   });

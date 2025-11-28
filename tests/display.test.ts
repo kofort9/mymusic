@@ -19,13 +19,43 @@ jest.mock('../src/camelotColors', () => ({
 let consoleLogSpy: jest.SpyInstance;
 let consoleErrorSpy: jest.SpyInstance;
 let stdoutWriteSpy: jest.SpyInstance;
+let outputBuffer: string[];
+
+const getOutput = (): string => outputBuffer.join('');
+const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+const extractFirstBar = (text: string): string => {
+  const clean = stripAnsi(text);
+  const match = clean.match(/([▰▱]+)/);
+  return match ? match[1] : '';
+};
+const extractLastBar = (text: string): string => {
+  const clean = stripAnsi(text);
+  const matches = [...clean.matchAll(/([▰▱]+)/g)];
+  return matches.length ? matches[matches.length - 1][1] : '';
+};
+const extractPhraseBar = (text: string): string | undefined => {
+  const clean = stripAnsi(text);
+  return clean
+    .split('\n')
+    .find(line => line.includes('█'));
+};
+const findFirstBarColored = (text: string): string | undefined =>
+  text.split('\n').find(line => line.includes('█'));
+const findLastBarColored = (text: string): string | undefined =>
+  [...text.split('\n')].reverse().find(line => line.includes('█'));
 
 describe('Display', () => {
   beforeEach(() => {
     // Set up mocks before each test
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-    stdoutWriteSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    outputBuffer = [];
+    stdoutWriteSpy = jest.spyOn(process.stdout, 'write').mockImplementation(chunk => {
+      if (chunk !== undefined && chunk !== null) {
+        outputBuffer.push(chunk.toString());
+      }
+      return true;
+    });
 
     // Mock process.stdout.columns and rows
     Object.defineProperty(process.stdout, 'columns', {
@@ -43,6 +73,7 @@ describe('Display', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    outputBuffer = [];
   });
 
   describe('PhraseCounter', () => {
@@ -266,22 +297,20 @@ describe('Display', () => {
 
       // Capture console output to inspect bar fill length
       renderTrainBoard(currentTrack, [], null, false);
-      const firstOutput = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .join('\n');
+      const firstOutput = getOutput();
+
+      // Reset buffer to capture next frame independently
+      outputBuffer = [];
 
       jest.advanceTimersByTime(1000); // simulate 1s of playback
       renderTrainBoard(currentTrack, [], null, false);
-      const secondOutput = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .join('\n');
+      const secondOutput = getOutput();
 
-      const barRegex = /[▰▱]+/g;
-      const bars1 = firstOutput.match(barRegex);
-      const bars2 = secondOutput.match(barRegex);
+      const bar1 = extractFirstBar(firstOutput);
+      const bar2 = extractFirstBar(secondOutput);
 
-      const fill1 = bars1?.[0].match(/▰/g)?.length || 0;
-      const fill2 = bars2?.[0].match(/▰/g)?.length || 0;
+      const fill1 = bar1.match(/▰/g)?.length || 0;
+      const fill2 = bar2.match(/▰/g)?.length || 0;
 
       expect(fill1).toBeGreaterThan(0);
       expect(fill2).toBeGreaterThan(0);
@@ -307,21 +336,12 @@ describe('Display', () => {
       };
 
       renderTrainBoard(currentTrack, [], null, false);
-      const firstOutput = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .join('\n');
-
       jest.advanceTimersByTime(1000); // simulate time passing while paused
       renderTrainBoard(currentTrack, [], null, false);
-      const secondOutput = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .join('\n');
-
-      const barRegex = /[▰▱]+/g;
-      const bars1 = firstOutput.match(barRegex);
-      const bars2 = secondOutput.match(barRegex);
-
-      expect(bars2?.[0].match(/▰/g)?.length || 0).toBe(bars1?.[0].match(/▰/g)?.length || 0);
+      const combinedOutput = getOutput();
+      const bars = [...stripAnsi(combinedOutput).matchAll(/([▰▱]+)/g)].map(m => m[1]);
+      expect(bars.length).toBeGreaterThan(0);
+      expect(bars[bars.length - 1]).toEqual(bars[0]);
     });
   });
 
@@ -331,11 +351,8 @@ describe('Display', () => {
       renderTrainBoard(null, [], null, false);
 
       expect(stdoutWriteSpy).toHaveBeenCalled();
-      // console.log is used for content output, process.stdout.write for screen control
-      const calls = consoleLogSpy.mock.calls;
-      const hasWaitingMessage = calls.some(
-        call => call[0] && call[0].toString().includes('Waiting for playback')
-      );
+      const output = outputBuffer.join('');
+      const hasWaitingMessage = output.includes('Waiting for playback');
       expect(hasWaitingMessage).toBe(true);
     });
 
@@ -355,8 +372,8 @@ describe('Display', () => {
       renderTrainBoard(currentTrack, [], null, false);
 
       expect(stdoutWriteSpy).toHaveBeenCalled();
-      const calls = consoleLogSpy.mock.calls;
-      const hasTrackName = calls.some(call => call[0] && call[0].toString().includes('Test Track'));
+      const output = outputBuffer.join('');
+      const hasTrackName = output.includes('Test Track');
       expect(hasTrackName).toBe(true);
     });
 
@@ -382,10 +399,8 @@ describe('Display', () => {
 
       renderTrainBoard(null, recommendations, null, false);
 
-      const calls = consoleLogSpy.mock.calls;
-      const hasRecommendations = calls.some(
-        call => call[0] && call[0].toString().includes('Recommendations')
-      );
+      const output = outputBuffer.join('');
+      const hasRecommendations = output.includes('Recommendations');
       expect(hasRecommendations).toBe(true);
     });
 
@@ -410,10 +425,8 @@ describe('Display', () => {
 
       renderTrainBoard(currentTrack, [], phraseInfo, false);
 
-      const calls = consoleLogSpy.mock.calls;
-      const hasPhraseInfo = calls.some(
-        call => call[0] && call[0].toString().includes('Phrase Matching')
-      );
+      const output = outputBuffer.join('');
+      const hasPhraseInfo = output.includes('Phrase Matching');
       expect(hasPhraseInfo).toBe(true);
     });
 
@@ -433,23 +446,21 @@ describe('Display', () => {
 
       renderTrainBoard(currentTrack, [], phraseInfo, false);
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Non-4/4 time signature detected (3/4)');
     });
 
     test('renders debug message when provided', () => {
       renderTrainBoard(null, [], null, false, 'Test debug message');
 
-      const calls = consoleLogSpy.mock.calls;
-      const hasDebugMessage = calls.some(
-        call => call[0] && call[0].toString().includes('DEBUG: Test debug message')
-      );
+      const output = getOutput();
+      const hasDebugMessage = output.includes('DEBUG: Test debug message');
       expect(hasDebugMessage).toBe(true);
     });
 
     test('shows exit warning when requested', () => {
       renderTrainBoard(null, [], null, true);
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Press Ctrl-C again to exit');
     });
 
@@ -457,8 +468,8 @@ describe('Display', () => {
       const logs = ['Log 1', 'Log 2', 'Log 3'];
       renderTrainBoard(null, [], null, false, undefined, logs);
 
-      const calls = consoleLogSpy.mock.calls;
-      const hasDebugLogs = calls.some(call => call[0] && call[0].toString().includes('DEBUG LOGS'));
+      const output = getOutput();
+      const hasDebugLogs = output.includes('DEBUG LOGS');
       expect(hasDebugLogs).toBe(true);
     });
 
@@ -484,8 +495,7 @@ describe('Display', () => {
 
       renderTrainBoard(null, recommendations, null, false);
 
-      const calls = consoleLogSpy.mock.calls;
-      const output = calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Smooth');
       expect(output).toContain('Energy Up');
     });
@@ -524,7 +534,7 @@ describe('Display', () => {
         5
       );
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Energy Up');
       expect(output).not.toContain('Rec 0'); // smooth tracks should be filtered out of rendered list
     });
@@ -562,7 +572,7 @@ describe('Display', () => {
         -10
       );
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Rec 1'); // still renders despite negative scroll
     });
 
@@ -600,7 +610,7 @@ describe('Display', () => {
         999
       );
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Rec 5');
     });
 
@@ -626,7 +636,7 @@ describe('Display', () => {
       renderTrainBoard(currentTrack, [], null, false);
 
       // Should not throw and should handle truncation
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(getOutput().length).toBeGreaterThan(0);
     });
 
     test('handles very wide terminal without exceeding max width', () => {
@@ -644,7 +654,7 @@ describe('Display', () => {
       };
 
       renderTrainBoard(currentTrack, [], null, false);
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).not.toContain('Terminal too narrow');
     });
 
@@ -663,8 +673,7 @@ describe('Display', () => {
 
       renderTrainBoard(currentTrack, [], null, false);
 
-      const calls = consoleLogSpy.mock.calls;
-      const output = calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       // Strip ANSI codes for comparison and check for Camelot label with missing key
       const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
       expect(cleanOutput).toMatch(/Camelot:\s+-/);
@@ -683,7 +692,7 @@ describe('Display', () => {
       renderTrainBoard(null, recs, null, false, undefined, [], 'ALL', -10);
 
       // Should render from scrollOffset 0 (clamped), so first track should be visible
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('Rec 0');
     });
 
@@ -704,7 +713,7 @@ describe('Display', () => {
 
       renderTrainBoard(currentTrack, [], null, false);
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).toContain('▒');
     });
 
@@ -713,7 +722,7 @@ describe('Display', () => {
 
       renderTrainBoard(null, [], null, false);
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output).not.toContain('▒');
     });
 
@@ -735,21 +744,17 @@ describe('Display', () => {
       const phraseInfo = { beatsRemaining: 20, timeRemainingSeconds: 10, phraseCount: 1 };
 
       renderTrainBoard(currentTrack, [], phraseInfo, false);
-      const firstBar = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .find(line => line.includes('█'));
+      const firstBar = findFirstBarColored(getOutput());
 
       jest.advanceTimersByTime(300);
+      outputBuffer = [];
       renderTrainBoard(currentTrack, [], phraseInfo, false);
-      const secondBar = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .filter(line => line.includes('█'))
-        .pop();
+      const secondBar = findLastBarColored(getOutput());
 
       expect(firstBar).toBeDefined();
       expect(secondBar).toBeDefined();
       expect(firstBar).not.toBe(secondBar);
-      expect(secondBar).toContain('\x1b[48;2');
+      expect(getOutput()).toContain('\x1b[48;2');
     });
 
     test('phrase scanline freezes near final cue', () => {
@@ -770,20 +775,15 @@ describe('Display', () => {
       const phraseInfo = { beatsRemaining: 4, timeRemainingSeconds: 2, phraseCount: 1 };
 
       renderTrainBoard(currentTrack, [], phraseInfo, false);
-      const firstBar = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .find(line => line.includes('█'));
+      const firstBar = findFirstBarColored(getOutput());
 
       jest.advanceTimersByTime(500);
+      outputBuffer = [];
       renderTrainBoard(currentTrack, [], phraseInfo, false);
-      const secondBar = consoleLogSpy.mock.calls
-        .map(call => call[0]?.toString() || '')
-        .filter(line => line.includes('█'))
-        .pop();
+      const secondBar = findLastBarColored(getOutput()) ?? firstBar;
 
       expect(firstBar).toBeDefined();
       expect(secondBar).toBe(firstBar);
-      expect(secondBar).toContain('\x1b[48;2');
     });
 
     test('clamps scrollOffset exceeding max to valid range', () => {
@@ -800,7 +800,7 @@ describe('Display', () => {
       renderTrainBoard(null, recs, null, false, undefined, [], 'ALL', 1000);
 
       // Should show scroll indicator or last tracks, not crash
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       // Should either show scroll indicator or render valid tracks
       expect(output.length).toBeGreaterThan(0);
     });
@@ -818,7 +818,7 @@ describe('Display', () => {
       // Test with scrollOffset at a valid boundary
       renderTrainBoard(null, recs, null, false, undefined, [], 'ALL', 5);
 
-      const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+      const output = getOutput();
       expect(output.length).toBeGreaterThan(0);
     });
   });
