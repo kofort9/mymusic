@@ -5,8 +5,8 @@ Thank you for your interest in contributing! This document provides guidelines a
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/mymusic.git`
-3. Create a branch: `git checkout -b feature/your-feature-name`
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/spotifydj.git`
+3. Create a branch: `cd spotifydj && git checkout -b feature/your-feature-name`
 4. Make your changes
 5. Test your changes: `npm test`
 6. Commit your changes: `git commit -m "Add: your feature description"`
@@ -55,4 +55,3 @@ Thank you for your interest in contributing! This document provides guidelines a
 ## Questions?
 
 Feel free to open an issue for questions or discussions about potential contributions.
-

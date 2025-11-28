@@ -1,7 +1,7 @@
 {
-  "name": "mymusic-dj-assistant",
+  "name": "spotifydj",
   "version": "0.1.0-alpha",
-  "description": "Real-Time DJ Assistant MVP",
+  "description": "SpotifyDJ — real-time DJ assistant TUI for Spotify",
   "main": "dist/main.js",
   "bin": {
     "spotifydj": "./bin/spotifydj"
@@ -36,12 +36,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kofort9/mymusic.git"
+    "url": "https://github.com/kofort9/spotifydj.git"
   },
   "bugs": {
-    "url": "https://github.com/kofort9/mymusic/issues"
+    "url": "https://github.com/kofort9/spotifydj/issues"
   },
-  "homepage": "https://github.com/kofort9/mymusic#readme",
+  "homepage": "https://github.com/kofort9/spotifydj#readme",
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.19.25",

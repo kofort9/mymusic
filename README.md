@@ -1,4 +1,4 @@
-# 🎧 Real-Time DJ Assistant (MVP)
+# 🎧 SpotifyDJ — Real-Time DJ Assistant (MVP)
 
 ![Real-Time DJ Assistant banner](docs/hero.svg)
 
@@ -7,7 +7,7 @@
 [![License: ISC](https://img.shields.io/badge/License-ISC-0b9e8f?style=for-the-badge)](LICENSE)
 [![CLI Ready](https://img.shields.io/badge/TUI-ready-0f8b8d?style=for-the-badge&logo=gnometerminal&logoColor=white)](#run-the-tui)
 
-Terminal-based DJ co-pilot that watches your current Spotify track and surfaces harmonic, BPM-safe transitions in a responsive “train board” UI.
+Terminal-based DJ co-pilot (`spotifydj`) that watches your current Spotify track and surfaces harmonic, BPM-safe transitions in a responsive “train board” UI.
 
 ## 📜 Table of Contents
 
@@ -38,8 +38,8 @@ Node.js 18+, Spotify Premium + Developer App (redirect: `http://127.0.0.1:8888/c
 2) **Install & configure**
 
 ```bash
-git clone https://github.com/kofort9/mymusic.git
-cd mymusic
+git clone https://github.com/kofort9/spotifydj.git
+cd spotifydj
 npm install
 cp .env.example .env
 ```
@@ -143,6 +143,7 @@ SongBPM / parse.bot ─────┘
 - The bundled seed uses an Exportify CSV. To refresh after adding songs, re-export from Exportify, replace `Liked_Songs.csv`, then run `npx prisma db seed` (or `npm run refresh:library`).
 - If you prefer on-demand enrichment for new songs, enable the parse.bot SongBPM provider (`AUDIO_FEATURE_PROVIDER=spotify,custom`). The free tier allows ~100 calls/month, so keep the DB cache populated to avoid hitting the limit.
 - The Prisma DB lives at `prisma/dev.db` by default; keep it out of commits.
+- Parse.bot SongBPM implementation plan lives in `PARSEBOT.md` (integration is not enabled by default).
 
 ## 🛠️ Tech Stack
 

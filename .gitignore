@@ -8,3 +8,4 @@ prisma/*.db
 *.log
 .vscode
 .idea
+.venv
