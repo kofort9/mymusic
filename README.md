@@ -1,73 +1,79 @@
 # 🎧 Real-Time DJ Assistant (MVP)
 
+![Real-Time DJ Assistant banner](docs/hero.svg)
+
+[![Node version](https://img.shields.io/badge/node-%E2%89%A518-43853d?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/en/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-2f74c0?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: ISC](https://img.shields.io/badge/License-ISC-0b9e8f?style=for-the-badge)](LICENSE)
+[![CLI Ready](https://img.shields.io/badge/TUI-ready-0f8b8d?style=for-the-badge&logo=gnometerminal&logoColor=white)](#run-the-tui)
+
 Terminal-based DJ co-pilot that watches your current Spotify track and surfaces harmonic, BPM-safe transitions in a responsive “train board” UI.
 
-## ✨ Current Features
+## 📜 Table of Contents
 
-- Smart Spotify polling with fast transition detection (1s near track end) and debug overlay (`--debug` flag).
-- Harmonic engine (Camelot wheel) + BPM filter (±10% for filtered tabs) with Shift categories: Smooth, Mood Switch, Energy Up/Down, Rhythmic Breaker.
-- Multi-provider audio features: Spotify (deprecated API), SongBPM/parse.bot fallback (`custom` provider), and local Prisma/SQLite cache.
-- Train-board TUI: flip-clock track changes, 40–60 char progress bar, 32-beat phrase meter (guards for non-4/4), category tabs + scroll.
-- Caching + fallback chain in `audioProcessor` to avoid repeat network calls.
+- [Highlights](#-highlights)
+- [Quick Start](#-quick-start)
+- [Run the TUI](#-run-the-tui)
+- [UI Preview](#-ui-preview)
+- [Keyboard & Scripts](#-keyboard--scripts)
+- [Architecture at a Glance](#-architecture-at-a-glance)
+- [Data & Providers](#-data--providers)
+- [Troubleshooting](#-troubleshooting)
+- [Privacy & Safety](#-privacy--safety)
+- [Known Limitations](#-known-limitations)
+
+## ✨ Highlights
+
+- Smart Spotify polling with near-track-end detection (1s) and inline debug overlay (`--debug` flag).
+- Harmonic engine (Camelot wheel) + BPM guard (±10% for filtered tabs) with shift categories: Smooth, Mood Switch, Energy Up/Down, Rhythmic Breaker.
+- Multi-source audio features: Spotify (deprecated API), SongBPM/parse.bot fallback (`custom` provider), and local Prisma/SQLite cache.
+- Train-board TUI with flip-clock transitions, 40–60 char progress bar, 32-beat phrase meter (with non-4/4 guard), category tabs + scroll.
+- Aggressive caching + fallback chain in `audioProcessor` to avoid repeat network calls.
 
 ## 🚀 Quick Start
 
-### 1) Prerequisites
+1) **Prerequisites**  
+Node.js 18+, Spotify Premium + Developer App (redirect: `http://127.0.0.1:8888/callback`). Optional: parse.bot API key for SongBPM fallback.
 
-- Node.js 18+
-- Spotify Premium + Developer App (redirect: `http://127.0.0.1:8888/callback`)
-- Optional: parse.bot API key for SongBPM fallback
-
-### 2) Install & Configure
+2) **Install & configure**
 
 ```bash
-git clone https://github.com/kofifort/mymusic-dj-assistant.git
-cd mymusic-dj-assistant
+git clone https://github.com/kofort9/mymusic.git
+cd mymusic
 npm install
 cp .env.example .env
 ```
 
-Fill `.env` with Spotify creds, choose providers (`AUDIO_FEATURE_PROVIDER=spotify` or `spotify,custom`), set `CUSTOM_API_KEY` if using SongBPM, and set your database URL (ex: `DATABASE_URL="file:./prisma/dev.db"`).
+Fill `.env` with Spotify creds, choose providers (`AUDIO_FEATURE_PROVIDER=spotify` or `spotify,custom`), set `CUSTOM_API_KEY` if using SongBPM, and point `DATABASE_URL` to your SQLite file (example: `DATABASE_URL="file:./prisma/dev.db"`).
 
-### 3) Seed the library (Prisma/SQLite)
-
-Tracks are stored in SQLite via Prisma (see `prisma/dev.db`):
+3) **Seed the library (Prisma/SQLite)**
 
 ```bash
 npx prisma migrate deploy      # apply schema
-npx prisma db seed             # imports from Liked_Songs.csv
+npx prisma db seed             # import from Liked_Songs.csv
 # shortcut: npm run db:setup   # migrate + seed
 ```
 
-Ensure your CSV `Track URI` values keep the `spotify:track:` prefix (matches runtime lookups).
+Keep `spotify:track:` prefixes in your CSV `Track URI` column (matches runtime lookups).
 
-### 4) Run the TUI
+## 🖥️ Run the TUI
 
 ```bash
-npm start          # main TUI
-npm start -- --debug   # with inline log pane
+npm start                # main TUI
+npm start -- --debug     # with inline log pane
 ```
 
-Controls: `tab` cycle categories, `w/s` scroll recommendations, `r` refresh library from CSV, `h` help overlay, double `Ctrl+C` to exit.
-
-### Global CLI usage
+Global CLI install:
 
 ```bash
-npm install       # install deps
-npm run build     # produce dist/main.js
-npm link          # exposes global `spotifydj`
+npm run build            # produce dist/main.js
+npm link                 # exposes global `spotifydj`
 spotifydj --debug
 ```
 
 If you install globally via `npm install -g .`, the `prepare` hook builds `dist/` so the binary works without `ts-node`.
 
-### Library data (Exportify) and refresh
-
-- The bundled seed uses a CSV exported via Exportify. To refresh after adding songs, re-export from Exportify, replace `Liked_Songs.csv`, then run `npx prisma db seed` again.
-- If you prefer on-demand enrichment for new songs, enable the parse.bot SongBPM provider (`AUDIO_FEATURE_PROVIDER=spotify,custom`). The free tier allows ~100 calls/month, so keep the DB cache populated to avoid hitting the limit.
-- Shortcut: `npm run refresh:library` (or press `r` inside the TUI) to rerun the seed after dropping in a new Exportify CSV.
-
-## 👀 UI Preview (sample data)
+## 👀 UI Preview
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
@@ -94,12 +100,49 @@ Beats Rem: 12.0 | Time: 5.7s
     [10A] Rave - Duke Dumont (127.9 BPM) +1.5%
 ```
 
-## 🏗️ How It Works
+### Keyboard & Scripts
 
-1. **Auth & Polling** (`auth.ts`, `spotifyClient.ts`): OAuth, token refresh, smart polling cadence based on remaining track time.
-2. **Feature Fetch** (`audioProcessor.ts`, providers): provider chain with caching; supports Spotify, SongBPM/parse.bot, and local DB.
-3. **Mixing Engine** (`camelot.ts`, `mixingEngine.ts`): Camelot conversion + shift-specific compatible keys and BPM gating.
-4. **Rendering Loop** (`display.ts`, `animation.ts`): 60fps-ish UI loop, flip-clock transitions, responsive width guards, scrollable recommendations.
+**Controls inside the TUI**
+
+| Key | Action |
+| --- | --- |
+| `tab` | Cycle recommendation categories |
+| `w` / `s` | Scroll results |
+| `r` | Refresh library from CSV |
+| `h` | Toggle help overlay |
+| `Ctrl+C` twice | Exit |
+
+**Script cheatsheet**
+
+| Command | What it does |
+| --- | --- |
+| `npm start -- --debug` | Run the TUI with inline logs |
+| `npm run db:migrate` | Apply Prisma schema |
+| `npm run db:seed` | Import `Liked_Songs.csv` into SQLite |
+| `npm run db:setup` | Migrate + seed in one go |
+| `npm run refresh:library` | Rerun the seed after swapping in a fresh Exportify CSV |
+| `npm test` / `npm run test:coverage` | Jest unit tests + coverage |
+| `npm run lint` / `npm run format` | Lint or format the TypeScript codebase |
+
+## 🧭 Architecture at a Glance
+
+```
+Spotify OAuth + polling ─┐
+                         ├─▶ audioProcessor ▶ cache ▶ mixingEngine ▶ display/animation ▶ train-board TUI
+SongBPM / parse.bot ─────┘
+           Prisma SQLite ─────────────────────────────────────────────────────────────┘
+```
+
+- **Auth & Polling** (`auth.ts`, `spotifyClient.ts`): OAuth, token refresh, and polling cadence that accelerates near track end.
+- **Feature Fetch** (`audioProcessor.ts`, providers): provider chain with caching; supports Spotify, SongBPM/parse.bot, and the local DB.
+- **Mixing Engine** (`camelot.ts`, `mixingEngine.ts`): Camelot conversion + shift-specific compatible keys and BPM gating.
+- **Rendering Loop** (`display.ts`, `animation.ts`): 60fps-ish UI loop, flip-clock transitions, responsive width guards, scrollable recommendations.
+
+## 🎚️ Data & Providers
+
+- The bundled seed uses an Exportify CSV. To refresh after adding songs, re-export from Exportify, replace `Liked_Songs.csv`, then run `npx prisma db seed` (or `npm run refresh:library`).
+- If you prefer on-demand enrichment for new songs, enable the parse.bot SongBPM provider (`AUDIO_FEATURE_PROVIDER=spotify,custom`). The free tier allows ~100 calls/month, so keep the DB cache populated to avoid hitting the limit.
+- The Prisma DB lives at `prisma/dev.db` by default; keep it out of commits.
 
 ## 🛠️ Tech Stack
 
@@ -109,11 +152,17 @@ TypeScript + Node.js, Spotify Web API, Prisma/SQLite, chalk/ANSI TUI.
 
 Spotify’s `/audio-features` endpoint is deprecated. Set `AUDIO_FEATURE_PROVIDER=spotify,custom` to fall back to SongBPM (parse.bot) or extend `src/providers/customApiProvider.ts` for your own source.
 
-## Accounts, Redirect URI, and Privacy
+## 🧰 Troubleshooting
 
-- Redirect URI: keep it at `http://127.0.0.1:8888/callback` for local auth; others can reuse that URI but cannot authorize without your app’s client ID/secret.
-- Keep secrets private: never commit `.env`, `tokens.json`, or your database. The repo ignores `.env`, tokens, and `prisma/*.db`; store the DB locally or in a private location.
-- If you rotate client secrets, update `.env` and remove old `tokens.json` so a fresh OAuth run occurs.
+- **Beat counter drift after long pauses**: reload recommendations (`r`) or restart the app; timestamp-based phrases can drift after extended pauses.
+- **Narrow terminals**: the UI needs ≥80 columns; below that, you’ll see a warning and a minimal view.
+- **Fresh auth**: if you rotate Spotify client secrets, remove `tokens.json` to force a clean OAuth run.
+
+## 🔐 Privacy & Safety
+
+- Redirect URI: keep `http://127.0.0.1:8888/callback` for local auth; others can reuse it but cannot authorize without your app’s client ID/secret.
+- Keep secrets private: never commit `.env`, `tokens.json`, or your database. `.env`, tokens, and `prisma/*.db` are ignored; store the DB locally or privately.
+- If you switch secrets, update `.env` and delete old `tokens.json` so a new OAuth flow runs.
 
 ## Known Limitations
 

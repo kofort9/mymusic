@@ -36,12 +36,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kofifort/mymusic-dj-assistant"
+    "url": "https://github.com/kofort9/mymusic.git"
   },
   "bugs": {
-    "url": "https://github.com/kofifort/mymusic-dj-assistant/issues"
+    "url": "https://github.com/kofort9/mymusic/issues"
   },
-  "homepage": "https://github.com/kofifort/mymusic-dj-assistant#readme",
+  "homepage": "https://github.com/kofort9/mymusic#readme",
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.19.25",
