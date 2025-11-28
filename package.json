@@ -1,6 +1,6 @@
 {
   "name": "spotifydj",
-  "version": "0.1.0-alpha",
+  "version": "0.1.1",
   "description": "SpotifyDJ — real-time DJ assistant TUI for Spotify",
   "main": "dist/main.js",
   "bin": {
