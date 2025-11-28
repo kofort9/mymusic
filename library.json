@@ -1,0 +1,83 @@
+[
+  {
+    "track_id": "spotify:track:sample1",
+    "track_name": "House Anthem",
+    "artist": "DJ Test",
+    "camelot_key": "8A",
+    "bpm": 128.0,
+    "energy": 0.8,
+    "genre": "House"
+  },
+  {
+    "track_id": "spotify:track:sample2",
+    "track_name": "Techno Bunker",
+    "artist": "Rave Master",
+    "camelot_key": "9A",
+    "bpm": 130.0,
+    "energy": 0.9,
+    "genre": "Techno"
+  },
+  {
+    "track_id": "spotify:track:sample3",
+    "track_name": "Trance Energy",
+    "artist": "Trance God",
+    "camelot_key": "10A",
+    "bpm": 138.0,
+    "energy": 0.95,
+    "genre": "Trance"
+  },
+  {
+    "track_id": "spotify:track:sample4",
+    "track_name": "Deep Vibes",
+    "artist": "Chillout",
+    "camelot_key": "5A",
+    "bpm": 120.0,
+    "energy": 0.5,
+    "genre": "Deep House"
+  },
+  {
+    "track_id": "spotify:track:sample5",
+    "track_name": "Pop Hit",
+    "artist": "Star",
+    "camelot_key": "1B",
+    "bpm": 100.0,
+    "energy": 0.7,
+    "genre": "Pop"
+  },
+  {
+    "track_id": "spotify:track:sample6",
+    "track_name": "Drum & Bass",
+    "artist": "Fast Paced",
+    "camelot_key": "4A",
+    "bpm": 174.0,
+    "energy": 0.9,
+    "genre": "DnB"
+  },
+  {
+    "track_id": "spotify:track:sample7",
+    "track_name": "Hip Hop Beat",
+    "artist": "MC Flow",
+    "camelot_key": "6A",
+    "bpm": 90.0,
+    "energy": 0.6,
+    "genre": "Hip Hop"
+  },
+  {
+    "track_id": "spotify:track:sample8",
+    "track_name": "Dubstep Banger",
+    "artist": "Wobble",
+    "camelot_key": "12A",
+    "bpm": 140.0,
+    "energy": 0.85,
+    "genre": "Dubstep"
+  },
+  {
+    "track_id": "spotify:track:sample9",
+    "track_name": "Generic Match",
+    "artist": "Versatile",
+    "camelot_key": "8B",
+    "bpm": 128.0,
+    "energy": 0.7,
+    "genre": "House"
+  }
+]
