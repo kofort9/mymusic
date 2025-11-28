@@ -1,7 +1,13 @@
 import { spotifyApi } from '../auth';
 import { AudioFeatures, TrackID } from '../types';
-import { Logger } from '../logger';
+import { logger } from '../utils/logger';
 import { AudioFeatureProvider } from './types';
+import { RateLimiter } from '../utils/RateLimiter';
+
+const spotifyLimiter = new RateLimiter('Spotify', {
+  tokensPerInterval: 10,
+  interval: 1000, // 10 requests per second
+});
 
 function sanitizeSpotifyTrackId(trackId: TrackID): string {
   return trackId.replace(/^spotify:track:/, '');
@@ -24,7 +30,7 @@ export class SpotifyProvider implements AudioFeatureProvider {
       await spotifyApi.getMe();
       return true;
     } catch (error) {
-      Logger.error('Spotify provider not available:', error);
+      logger.error('Spotify provider not available:', { error });
       return false;
     }
   }
@@ -37,18 +43,19 @@ export class SpotifyProvider implements AudioFeatureProvider {
     // trackName and artist are ignored for Spotify (ID-based provider)
     try {
       const cleanId = sanitizeSpotifyTrackId(trackId);
-      Logger.log(`[${this.getName()}] Fetching features for ${trackId}...`);
+      await spotifyLimiter.waitForToken();
+      logger.info(`[${this.getName()}] Fetching features for ${trackId}...`);
       const response = await spotifyApi.getAudioFeaturesForTrack(cleanId);
 
       if (!response.body) {
-        Logger.error(`[${this.getName()}] No audio features body for track ${trackId}`);
+        logger.error(`[${this.getName()}] No audio features body for track ${trackId}`);
         return null;
       }
 
       const data = response.body;
 
       if (!data) {
-        Logger.error(`[${this.getName()}] Audio features data is null for track ${trackId}`);
+        logger.error(`[${this.getName()}] Audio features data is null for track ${trackId}`);
         return null;
       }
 
@@ -60,7 +67,7 @@ export class SpotifyProvider implements AudioFeatureProvider {
         time_signature: data.time_signature,
       };
 
-      Logger.log(
+      logger.info(
         `[${this.getName()}] Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}, TimeSig=${features.time_signature}`
       );
 
@@ -80,14 +87,14 @@ export class SpotifyProvider implements AudioFeatureProvider {
         }
       }
 
-      Logger.error(
+      logger.error(
         `[${this.getName()}] Audio features fetch error for ${trackId}: ${errorDetails}`,
-        error
+        { error }
       );
 
       // Log deprecation warning if we get a specific error
       if (err.statusCode === 410 || err.statusCode === 404) {
-        Logger.error(
+        logger.warn(
           `[${this.getName()}] WARNING: Endpoint may be deprecated! Consider switching to an alternative provider.`
         );
       }

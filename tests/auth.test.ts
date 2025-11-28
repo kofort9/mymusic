@@ -12,10 +12,10 @@ jest.mock('dotenv', () => ({
   config: jest.fn(),
 }));
 
-// Mock Logger to avoid console noise
-jest.mock('../src/logger', () => ({
-  Logger: {
-    log: jest.fn(),
+// Mock logger to avoid console noise
+jest.mock('../src/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
     error: jest.fn(),
   },
 }));
@@ -58,7 +58,7 @@ jest.mock('spotify-web-api-node', () => {
 
 // Now import auth module after mocks are set up
 import { authenticate, saveTokens, spotifyApi } from '../src/auth';
-import { Logger } from '../src/logger';
+import { logger } from '../src/utils/logger';
 import { createServer } from 'http';
 
 const TOKEN_PATH = path.join(process.cwd(), 'tokens.json');
@@ -98,6 +98,11 @@ describe('Auth', () => {
     });
   });
 
+  test('proxy set forwards properties to the spotifyApi instance', () => {
+    (spotifyApi as any).customField = 'hello';
+    expect((mockSpotifyApi as any).customField).toBe('hello');
+  });
+
   describe('authenticate', () => {
     test('loads saved tokens successfully when valid', async () => {
       const tokens = {
@@ -114,7 +119,7 @@ describe('Auth', () => {
       expect(mockSpotifyApi.setAccessToken).toHaveBeenCalledWith('valid_access_token');
       expect(mockSpotifyApi.setRefreshToken).toHaveBeenCalledWith('valid_refresh_token');
       expect(mockSpotifyApi.getMe).toHaveBeenCalled();
-      expect(Logger.log).toHaveBeenCalledWith('Loaded saved tokens.');
+      expect(logger.info).toHaveBeenCalledWith('Loaded saved tokens.');
     });
 
     test('throws when required env credentials are missing', async () => {
@@ -169,6 +174,46 @@ describe('Auth', () => {
       expect(mockServer.close).toHaveBeenCalled();
     });
 
+    test('handles OAuth callback success and saves tokens', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      mockSpotifyApi.authorizationCodeGrant.mockResolvedValue({
+        body: { access_token: 'access', refresh_token: 'refresh' },
+      });
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback?code=granted' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+      await authPromise;
+
+      expect(mockSpotifyApi.setAccessToken).toHaveBeenCalledWith('access');
+      expect(mockSpotifyApi.setRefreshToken).toHaveBeenCalledWith('refresh');
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        TOKEN_PATH,
+        JSON.stringify({ access_token: 'access', refresh_token: 'refresh' }, null, 2)
+      );
+      expect(logger.info).toHaveBeenCalledWith('Authentication successful! Tokens saved.');
+    });
+
+    test('handles authorization code grant failure in callback', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      mockSpotifyApi.authorizationCodeGrant.mockRejectedValue(new Error('grant failed'));
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback?code=bad' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+      await expect(authPromise).rejects.toThrow('grant failed');
+    });
+
     test('refreshes token when expired', async () => {
       const oldTokens = {
         access_token: 'expired_token',
@@ -194,7 +239,7 @@ describe('Auth', () => {
       expect(mockSpotifyApi.refreshAccessToken).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalledWith(TOKEN_PATH, JSON.stringify(newTokens, null, 2));
       expect(mockSpotifyApi.setAccessToken).toHaveBeenCalledWith('new_access_token');
-      expect(Logger.log).toHaveBeenCalledWith('Token refreshed successfully.');
+      expect(logger.info).toHaveBeenCalledWith('Token refreshed successfully.');
     });
 
     test('handles refresh token rotation', async () => {
@@ -242,7 +287,7 @@ describe('Auth', () => {
       await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(mockSpotifyApi.refreshAccessToken).toHaveBeenCalled();
-      expect(Logger.log).toHaveBeenCalledWith(
+      expect(logger.info).toHaveBeenCalledWith(
         'Could not refresh token, requiring re-authentication.'
       );
     });
@@ -259,7 +304,7 @@ describe('Auth', () => {
       // Give it time to process the error
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      expect(Logger.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(createServer).toHaveBeenCalled();
     });
 
@@ -275,7 +320,7 @@ describe('Auth', () => {
       expect(createServer).toHaveBeenCalled();
       expect(mockServer.listen).toHaveBeenCalled();
       expect(mockSpotifyApi.createAuthorizeURL).toHaveBeenCalled();
-      expect(Logger.log).toHaveBeenCalledWith('Please log in to Spotify by visiting this URL:');
+      expect(logger.info).toHaveBeenCalledWith('Please log in to Spotify by visiting this URL:');
     });
   });
 });

@@ -1,6 +1,6 @@
 import { AudioFeatureProvider } from './types';
 import { AudioFeatures, TrackID } from '../types';
-import { Logger } from '../logger';
+import { logger } from '../utils/logger';
 import { prisma } from '../dbClient';
 
 export class DatabaseProvider implements AudioFeatureProvider {
@@ -16,7 +16,7 @@ export class DatabaseProvider implements AudioFeatureProvider {
       await prisma.track.count();
       return true;
     } catch (error) {
-      Logger.error(`[DatabaseProvider] DB not available: ${error}`);
+      logger.error(`[DatabaseProvider] DB not available: ${error}`, { error });
       return false;
     }
   }
@@ -27,18 +27,18 @@ export class DatabaseProvider implements AudioFeatureProvider {
     _artist?: string
   ): Promise<AudioFeatures | null> {
     try {
-      Logger.log(`[DatabaseProvider] Looking up ${trackId} in local DB...`);
+      logger.info(`[DatabaseProvider] Looking up ${trackId} in local DB...`);
 
       const track = await prisma.track.findUnique({
         where: { spotifyId: trackId },
       });
 
       if (!track) {
-        Logger.log(`[DatabaseProvider] Track ${trackId} not found in DB`);
+        logger.info(`[DatabaseProvider] Track ${trackId} not found in DB`);
         return null;
       }
 
-      Logger.log(`[DatabaseProvider] Found track: ${track.title} by ${track.artist}`);
+      logger.info(`[DatabaseProvider] Found track: ${track.title} by ${track.artist}`);
 
       return {
         tempo: track.bpm,
@@ -54,7 +54,7 @@ export class DatabaseProvider implements AudioFeatureProvider {
         time_signature: track.timeSignature || undefined,
       };
     } catch (error) {
-      Logger.error(`[DatabaseProvider] Error fetching from DB: ${error}`);
+      logger.error(`[DatabaseProvider] Error fetching from DB: ${error}`, { error });
       return null;
     }
   }

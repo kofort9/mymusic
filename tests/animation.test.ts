@@ -52,6 +52,27 @@ describe('Animation', () => {
     expect(result).toBe('');
   });
 
+  test('animateText uses dissolve pattern randomness', () => {
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.6);
+    const result = animateText('XYZ', 0, 'dissolve');
+    expect(result.length).toBe(3);
+    randomSpy.mockRestore();
+  });
+
+  test('animateText uses waterfall drift before settling', () => {
+    // For single character, threshold is 0 so progress >= threshold but still within drift window
+    const driftFrame = 1; // early frame to stay below threshold + 0.12
+    const result = animateText('A', driftFrame, 'waterfall', [0]);
+    expect(result).toBe('B'); // ANIMATION_CHARS[1] since frame=1, index=0
+  });
+
+  test('waterfall pattern order groups by column modulo', () => {
+    // Using length 6 ensures waterfall branch runs and sorts by modulo 4
+    const text = 'ABCDEF';
+    const result = animateText(text, 0, 'waterfall');
+    expect(result.length).toBe(text.length);
+  });
+
   describe('runFlipClockAnimation', () => {
     test('calls onFrame for each frame and completes with final text', async () => {
       const onFrame = jest.fn();

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { parse } from 'url';
-import { Logger } from './logger';
+import { logger } from './utils/logger';
 
 dotenv.config();
 
@@ -40,7 +40,9 @@ export const spotifyApi = new Proxy({} as SpotifyWebApi, {
     return getSpotifyApi()[prop as keyof SpotifyWebApi];
   },
   set(target, prop, value) {
-    (getSpotifyApi() as any)[prop] = value;
+    // Type-safe property assignment with explicit unknown intermediate
+    const api = getSpotifyApi();
+    (api as unknown as Record<string, unknown>)[prop as string] = value;
     return true;
   },
 });
@@ -63,10 +65,10 @@ export async function authenticate(): Promise<void> {
       // Test if token works, refresh if needed
       try {
         await spotifyApi.getMe();
-        Logger.log('Loaded saved tokens.');
+        logger.info('Loaded saved tokens.');
         return;
       } catch (error: unknown) {
-        Logger.log('Saved token invalid or expired, refreshing...');
+        logger.info('Saved token invalid or expired, refreshing...');
         try {
           const data = await spotifyApi.refreshAccessToken();
           const newRefreshToken = data.body['refresh_token'] || tokens.refresh_token;
@@ -80,14 +82,14 @@ export async function authenticate(): Promise<void> {
           if (data.body['refresh_token']) {
             spotifyApi.setRefreshToken(newRefreshToken);
           }
-          Logger.log('Token refreshed successfully.');
+          logger.info('Token refreshed successfully.');
           return;
         } catch (refreshError) {
-          Logger.log('Could not refresh token, requiring re-authentication.');
+          logger.info('Could not refresh token, requiring re-authentication.');
         }
       }
     } catch (err) {
-      Logger.error('Error loading tokens file:', err);
+      logger.error('Error loading tokens file:', { error: err });
     }
   }
 
@@ -135,7 +137,7 @@ async function performOAuthFlow(): Promise<void> {
             spotifyApi.setRefreshToken(tokens.refresh_token);
             saveTokens(tokens);
 
-            Logger.log('Authentication successful! Tokens saved.');
+            logger.info('Authentication successful! Tokens saved.');
             resolve();
           } catch (err) {
             reject(err);
@@ -152,8 +154,8 @@ async function performOAuthFlow(): Promise<void> {
 
     server.listen(port, () => {
       const authUrl = spotifyApi.createAuthorizeURL(SCOPES, 'state');
-      Logger.log('Please log in to Spotify by visiting this URL:');
-      Logger.log(authUrl);
+      logger.info('Please log in to Spotify by visiting this URL:');
+      logger.info(authUrl);
     });
   });
 }

@@ -4,56 +4,57 @@ import { getAudioFeatures } from './audioProcessor';
 import { convertToCamelot } from './camelot';
 import { loadLibrary } from './library';
 import { getCompatibleKeys, filterMatches } from './mixingEngine';
-import { PhraseCounter, renderTrainBoard } from './display';
+import { PhraseCounter, renderNarrowWarning, renderTrainBoard } from './display';
 import { CurrentTrack, MatchedTrack, ShiftType, LibraryTrack } from './types';
 import { refreshLibrary } from './refreshLibrary';
 import * as readline from 'readline';
-import { Logger } from './logger';
+import { logger, getLogs } from './utils/logger';
 import { runFlipClockAnimation } from './animation';
 import { disconnectPrisma } from './dbClient';
-
-const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds default
-const MAX_POLL_INTERVAL = 10000; // Cap at 10 seconds to detect skips
-const FAST_POLL_INTERVAL = 1000; // 1 second during transition window
-const TRANSITION_THRESHOLD = 5000; // 5 seconds remaining = start fast polling
-const UI_REFRESH_RATE = 100;
-const MIN_TERMINAL_WIDTH = 80;
+import { runFirstRunWizard } from './setupWizard';
+import { startServer } from './server';
+import { POLLING, UI } from './constants';
 
 export function isTerminalTooNarrow(width?: number): boolean {
-  const terminalWidth = width ?? process.stdout.columns ?? MIN_TERMINAL_WIDTH;
-  return terminalWidth < MIN_TERMINAL_WIDTH;
+  const terminalWidth = width ?? process.stdout.columns ?? UI.MIN_TERMINAL_WIDTH;
+  return terminalWidth < UI.MIN_TERMINAL_WIDTH;
 }
 
 async function main() {
-  if (process.stdin.setRawMode) {
-    process.stdin.setRawMode(true);
-  }
-  readline.emitKeypressEvents(process.stdin);
-
   const isDebugMode = process.argv.includes('--debug');
 
   if (isDebugMode) {
-    Logger.log('Debug mode enabled.');
+    logger.info('Debug mode enabled.');
   }
 
-  Logger.log('Initializing Real-Time DJ Assistant...');
+  logger.info('Initializing Real-Time DJ Assistant...');
+  startServer();
 
   let library: LibraryTrack[] = [];
   try {
     library = await loadLibrary();
-    Logger.log(`Library loaded: ${library.length} tracks.`);
+    logger.info(`Library loaded: ${library.length} tracks.`);
   } catch (error) {
-    Logger.error('Failed to load library:', error);
+    logger.error('Failed to load library:', { error });
     process.exit(1);
   }
 
+  await runFirstRunWizard(library.length);
+
   try {
     await authenticate();
-    Logger.log('Authenticated with Spotify.');
+    logger.info('Authenticated with Spotify.');
   } catch (error) {
-    Logger.error('Authentication failed:', error);
+    logger.error('Authentication failed. Check your Spotify credentials and try again.', { error });
+    console.error('\nAuthentication failed. Ensure SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI are set in .env and re-run `npm start`.');
+    console.error('If prompted, complete the browser login to Spotify so tokens.json can be saved locally.\n');
     process.exit(1);
   }
+
+  if (process.stdin.setRawMode) {
+    process.stdin.setRawMode(true);
+  }
+  readline.emitKeypressEvents(process.stdin);
 
   let currentTrack: CurrentTrack | null = null;
   let recommendations: MatchedTrack[] = [];
@@ -68,11 +69,67 @@ async function main() {
   let uiInterval: NodeJS.Timeout | null = null;
   let isRefreshingLibrary = false;
   let showHelp = false;
+  let isShuttingDown = false;
 
   // UI State
   let selectedCategory: ShiftType | 'ALL' = 'ALL';
   const categories = ['ALL', ...Object.values(ShiftType)];
   let scrollOffset = 0;
+
+  const silenceConsoleLogger = () => {
+    const transports = (logger as any).transports as Array<any> | undefined;
+    if (!transports) return;
+    transports.forEach(t => {
+      if ((t as any).name === 'console') {
+        (t as any).silent = true;
+      }
+    });
+  };
+
+  // Cleanup handler
+  const cleanup = () => {
+    if (isShuttingDown) return; // Prevent double cleanup
+    isShuttingDown = true;
+
+    // Clear timers first to stop any new renders
+    if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (uiInterval) clearInterval(uiInterval);
+
+    // Remove listeners
+    process.stdin.removeListener('keypress', onKeypress);
+    if (process.stdin.pause) {
+      process.stdin.pause();
+    }
+
+    // Show cursor and clear screen
+    process.stdout.write('\x1b[?25h'); // Show cursor
+    process.stdout.write('\x1b[2J\x1b[0f'); // Clear screen
+
+    // Silence console transport so shutdown logs don't clutter the farewell
+    silenceConsoleLogger();
+    logger.info('Goodbye!');
+    if (process.env.NODE_ENV !== 'test') {
+      // User-facing farewell without JSON metadata noise
+      const farewell = [
+        '',
+        'SpotifyDJ · Session ended gracefully',
+        '',
+        'Thanks for grooving with us. See you next set! ✨',
+        '',
+      ].join('\n');
+      // eslint-disable-next-line no-console
+      console.log(farewell);
+    }
+  };
+
+  // Async cleanup for graceful shutdown
+  const gracefulShutdown = async () => {
+    if (isShuttingDown) return;
+    cleanup();
+    await disconnectPrisma();
+    process.exit(0);
+  };
 
   const triggerLibraryRefresh = async () => {
     if (isRefreshingLibrary) {
@@ -92,9 +149,38 @@ async function main() {
         debugMessage = 'Library refreshed.';
 
         if (currentTrack) {
-          const compatibleKeys = getCompatibleKeys(currentTrack.camelot_key);
-          const useRelaxedFilter = selectedCategory === 'ALL';
-          recommendations = filterMatches(currentTrack, library, compatibleKeys, useRelaxedFilter);
+          // Use current track features if available, otherwise fall back to library values
+          const libraryMatch = library.find(t => t.track_id === currentTrack?.track_id);
+          const effectiveCamelot = (
+            currentTrack.camelot_key ||
+            libraryMatch?.camelot_key ||
+            ''
+          ).trim();
+          const effectiveBpm = currentTrack.audio_features?.tempo || libraryMatch?.bpm || 0;
+
+          if (!effectiveCamelot || effectiveBpm <= 0) {
+            debugMessage =
+              'Library refreshed. Current track missing BPM/key; waiting for Spotify features or library entry.';
+            recommendations = [];
+          } else {
+            const compatibleKeys = getCompatibleKeys(effectiveCamelot);
+            const useRelaxedFilter = selectedCategory === 'ALL';
+            const updatedTrack: CurrentTrack = {
+              ...currentTrack,
+              camelot_key: effectiveCamelot,
+              audio_features: {
+                ...currentTrack.audio_features,
+                tempo: effectiveBpm,
+              },
+            };
+            recommendations = filterMatches(
+              updatedTrack,
+              library,
+              compatibleKeys,
+              useRelaxedFilter
+            );
+            currentTrack = updatedTrack;
+          }
         }
       } else {
         debugMessage = `Refresh failed: ${result.error || 'Unknown error'}`;
@@ -109,10 +195,11 @@ async function main() {
   };
 
   // Keypress Handler
-  process.stdin.on('keypress', (str, key) => {
+  const onKeypress = (str: string, key: readline.Key) => {
+    if (isShuttingDown) return;
     if (key.ctrl && key.name === 'c') {
       if (showExitWarning) {
-        process.exit(0); // Cleanup handler will be called automatically
+        void gracefulShutdown();
       } else {
         showExitWarning = true;
         renderCurrentState();
@@ -120,7 +207,7 @@ async function main() {
         exitWarningTimeout = setTimeout(() => {
           showExitWarning = false;
           renderCurrentState();
-        }, 1000);
+        }, UI.EXIT_WARNING_TIMEOUT);
       }
     } else if (key.name === 'tab') {
       // Cycle categories
@@ -143,19 +230,20 @@ async function main() {
       showHelp = !showHelp;
       renderCurrentState();
     }
-  });
+  };
+
+  process.stdin.on('keypress', onKeypress);
 
   const renderCurrentState = () => {
-    const logs = isDebugMode ? Logger.getLogs() : [];
+    // Don't render if shutdown is in progress
+    if (isShuttingDown) return;
+
+    const logs = isDebugMode ? getLogs() : [];
 
     // Check minimum terminal width
-    const terminalWidth = process.stdout.columns || MIN_TERMINAL_WIDTH;
+    const terminalWidth = process.stdout.columns || UI.MIN_TERMINAL_WIDTH;
     if (isTerminalTooNarrow(terminalWidth)) {
-      process.stdout.write('\x1b[2J\x1b[0f');
-      console.log('\n⚠️  Terminal too narrow!');
-      console.log(`Minimum width: 80 characters`);
-      console.log(`Current width: ${terminalWidth} characters`);
-      console.log(`\nPlease resize your terminal window.`);
+      renderNarrowWarning(terminalWidth);
       return;
     }
 
@@ -170,6 +258,25 @@ async function main() {
       );
     }
 
+    const notices: string[] = [];
+    const currentTrackId = currentTrack?.track_id;
+    const libraryMatch = currentTrackId
+      ? library.find(track => track.track_id === currentTrackId)
+      : undefined;
+
+    const hasTempo = Boolean(currentTrack?.audio_features?.tempo && currentTrack.audio_features.tempo > 0);
+    const hasCamelot = Boolean(currentTrack?.camelot_key);
+    const libHasTempo = Boolean(libraryMatch?.bpm && libraryMatch.bpm > 0);
+    const libHasCamelot = Boolean(libraryMatch?.camelot_key);
+
+    if (!currentTrack) {
+      notices.push('No playback detected on Spotify. Start a track to see harmonic matches.');
+    } else if (!hasTempo || !hasCamelot || !libHasTempo || !libHasCamelot) {
+      notices.push(
+        'Missing BPM/Key for current track. Press r to refresh library or enable SongBPM fallback in .env.'
+      );
+    }
+
     renderTrainBoard(
       currentTrack,
       recommendations,
@@ -179,13 +286,15 @@ async function main() {
       logs,
       selectedCategory,
       scrollOffset,
-      showHelp
+      showHelp,
+      notices
     );
   };
 
   // Smart Polling Logic
   const pollLoop = async () => {
-    let nextPollDelay = DEFAULT_POLL_INTERVAL;
+    if (isShuttingDown) return;
+    let nextPollDelay: number = POLLING.DEFAULT_INTERVAL;
 
     try {
       const trackData = await pollCurrentlyPlaying();
@@ -240,7 +349,7 @@ async function main() {
                     null,
                     showExitWarning,
                     debugMessage,
-                    isDebugMode ? Logger.getLogs() : [],
+                    isDebugMode ? getLogs() : [],
                     selectedCategory,
                     scrollOffset,
                     showHelp
@@ -278,19 +387,18 @@ async function main() {
         if (currentTrack && currentTrack.isPlaying) {
           const remainingMs = currentTrack.duration_ms - currentTrack.progress_ms;
 
-          if (remainingMs <= TRANSITION_THRESHOLD) {
+          if (remainingMs <= POLLING.TRANSITION_THRESHOLD) {
             // Near end: Poll fast to catch transition
-            nextPollDelay = FAST_POLL_INTERVAL;
-          } else if (remainingMs > 20000) {
-            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
-            nextPollDelay = MAX_POLL_INTERVAL;
+            nextPollDelay = POLLING.FAST_INTERVAL;
+          } else if (remainingMs > 20000) {            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
+            nextPollDelay = POLLING.MAX_INTERVAL;
           } else {
             // Medium time remaining: Poll halfway or standard
-            nextPollDelay = DEFAULT_POLL_INTERVAL;
+            nextPollDelay = POLLING.DEFAULT_INTERVAL;
           }
         } else {
           // Paused: Poll standard/slow
-          nextPollDelay = DEFAULT_POLL_INTERVAL;
+          nextPollDelay = POLLING.DEFAULT_INTERVAL;
         }
       } else {
         currentTrack = null;
@@ -298,38 +406,28 @@ async function main() {
         lastTrackId = null;
         debugMessage = undefined;
         // Nothing playing: Poll standard
-        nextPollDelay = DEFAULT_POLL_INTERVAL;
+        nextPollDelay = POLLING.DEFAULT_INTERVAL;
       }
     } catch (error) {
       // console.error("Error in poll loop:", error); // Don't log to stdout to keep UI clean, rely on debugMessage
       const err = error as Error;
       debugMessage = `Poll Error: ${err.message || 'Unknown error'}`;
-      nextPollDelay = DEFAULT_POLL_INTERVAL;
+      nextPollDelay = POLLING.DEFAULT_INTERVAL;
     }
 
-    // Schedule next poll
-    pollTimeout = setTimeout(pollLoop, nextPollDelay);
-  };
-
-  // Cleanup handler
-  const cleanup = () => {
-    if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
-    if (pollTimeout) clearTimeout(pollTimeout);
-    if (uiInterval) clearInterval(uiInterval);
-    process.stdout.write('\x1b[?25h'); // Show cursor
-    void disconnectPrisma();
-    Logger.log('\nGoodbye!');
+    // Schedule next poll only if not shutting down
+    if (!isShuttingDown) {
+      pollTimeout = setTimeout(pollLoop, nextPollDelay);
+    }
   };
 
   // Register cleanup handlers
   process.on('exit', cleanup);
-  process.on('SIGTERM', () => {
-    cleanup();
-    process.exit(0);
+  process.once('SIGTERM', () => {
+    void gracefulShutdown();
   });
-  process.on('SIGINT', () => {
-    cleanup();
-    process.exit(0);
+  process.once('SIGINT', () => {
+    void gracefulShutdown();
   });
 
   // Handle terminal resize
@@ -342,8 +440,10 @@ async function main() {
 
   // UI Loop (separate independent loop for smooth animations)
   uiInterval = setInterval(() => {
-    renderCurrentState();
-  }, UI_REFRESH_RATE);
+    if (!isShuttingDown) {
+      renderCurrentState();
+    }
+  }, UI.REFRESH_RATE);
 
   // Initial clear
   process.stdout.write('\x1b[2J\x1b[0f');
@@ -351,8 +451,21 @@ async function main() {
 }
 
 if (require.main === module) {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  main();
+  main().catch((error) => {
+    logger.error('Unhandled error in main loop:', { error });
+    process.exit(1);
+  });
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', { promise, reason });
+  // Recommended: restart the process?
+  // process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', { error });
+  process.exit(1);
+});
 
 export { main };

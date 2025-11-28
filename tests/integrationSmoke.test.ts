@@ -12,7 +12,15 @@ jest.mock('../package.json', () => ({ version: '0.0.0-smoke' }), { virtual: true
 
 describe('Integration Smoke', () => {
   const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-  const stdoutWriteSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const outputBuffer: string[] = [];
+  const stdoutWriteSpy = jest
+    .spyOn(process.stdout, 'write')
+    .mockImplementation(chunk => {
+      if (chunk !== undefined && chunk !== null) {
+        outputBuffer.push(chunk.toString());
+      }
+      return true;
+    });
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -60,7 +68,7 @@ describe('Integration Smoke', () => {
 
     renderTrainBoard(currentTrack, recs, null, false);
 
-    const output = consoleLogSpy.mock.calls.map(call => call[0]?.toString() || '').join('\n');
+    const output = outputBuffer.join('');
     expect(output).toContain('Recommendations');
     expect(output).toContain('Smooth');
     expect(output).toContain('Energy');

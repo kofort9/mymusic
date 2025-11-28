@@ -1,38 +1,46 @@
 import { spotifyApi, saveTokens } from './auth';
 import { CurrentTrack } from './types';
-import { Logger } from './logger';
+import { logger } from './utils/logger';
+import { CircuitBreaker } from './utils/CircuitBreaker';
+
+const spotifyBreaker = new CircuitBreaker('SpotifyAPI', {
+  failureThreshold: 3,
+  resetTimeout: 30000,
+});
 
 export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
   try {
-    const response = await spotifyApi.getMyCurrentPlayingTrack();
+    return await spotifyBreaker.execute(async () => {
+      const response = await spotifyApi.getMyCurrentPlayingTrack();
 
-    if (response.statusCode === 204 || !response.body || !response.body.item) {
-      return null;
-    }
+      if (response.statusCode === 204 || !response.body || !response.body.item) {
+        return null;
+      }
 
-    if (response.body.currently_playing_type !== 'track') {
-      return null; // Podcast or other media
-    }
+      if (response.body.currently_playing_type !== 'track') {
+        return null; // Podcast or other media
+      }
 
-    const track = response.body.item as SpotifyApi.TrackObjectFull; // Cast if needed, depending on types
+      const track = response.body.item as SpotifyApi.TrackObjectFull; // Cast if needed, depending on types
 
-    if (!track.id) return null; // Skip local files or invalid IDs
+      if (!track.id) return null; // Skip local files or invalid IDs
 
-    return {
-      track_id: `spotify:track:${track.id}`, // Use full URI to match database format
-      track_name: track.name,
-      artist: track.artists.map(a => a.name).join(', '),
-      camelot_key: '', // Filled later
-      audio_features: { tempo: 0, key: 0, mode: 0 }, // Filled later
-      progress_ms: response.body.progress_ms || 0,
-      duration_ms: track.duration_ms, // Fetch duration
-      timestamp: response.body.timestamp || Date.now(),
-      isPlaying: response.body.is_playing,
-    };
+      return {
+        track_id: `spotify:track:${track.id}`, // Use full URI to match database format
+        track_name: track.name,
+        artist: track.artists.map(a => a.name).join(', '),
+        camelot_key: '', // Filled later
+        audio_features: { tempo: 0, key: 0, mode: 0 }, // Filled later
+        progress_ms: response.body.progress_ms || 0,
+        duration_ms: track.duration_ms, // Fetch duration
+        timestamp: response.body.timestamp || Date.now(),
+        isPlaying: response.body.is_playing,
+      };
+    });
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string };
     if (err.statusCode === 401) {
-      Logger.log('Token expired, attempting refresh...');
+      logger.info('Token expired, attempting refresh...');
       try {
         const data = await spotifyApi.refreshAccessToken();
         const newAccessToken = data.body['access_token'];
@@ -53,11 +61,11 @@ export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
 
         return pollCurrentlyPlaying(); // Retry once
       } catch (refreshError) {
-        Logger.error('Session expired. Please restart to re-authenticate.', refreshError);
+        logger.error('Session expired. Please restart to re-authenticate.', { error: refreshError });
         return null;
       }
     }
-    Logger.error('Polling error:', error);
+    logger.error('Polling error:', { error });
     return null;
   }
 }
