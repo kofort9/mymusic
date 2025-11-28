@@ -13,17 +13,11 @@ import { runFlipClockAnimation } from './animation';
 import { disconnectPrisma } from './dbClient';
 import { runFirstRunWizard } from './setupWizard';
 import { startServer } from './server';
-
-const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds default
-const MAX_POLL_INTERVAL = 10000; // Cap at 10 seconds to detect skips
-const FAST_POLL_INTERVAL = 1000; // 1 second during transition window
-const TRANSITION_THRESHOLD = 5000; // 5 seconds remaining = start fast polling
-const UI_REFRESH_RATE = 100;
-const MIN_TERMINAL_WIDTH = 80;
+import { POLLING, UI } from './constants';
 
 export function isTerminalTooNarrow(width?: number): boolean {
-  const terminalWidth = width ?? process.stdout.columns ?? MIN_TERMINAL_WIDTH;
-  return terminalWidth < MIN_TERMINAL_WIDTH;
+  const terminalWidth = width ?? process.stdout.columns ?? UI.MIN_TERMINAL_WIDTH;
+  return terminalWidth < UI.MIN_TERMINAL_WIDTH;
 }
 
 async function main() {
@@ -75,24 +69,63 @@ async function main() {
   let uiInterval: NodeJS.Timeout | null = null;
   let isRefreshingLibrary = false;
   let showHelp = false;
+  let isShuttingDown = false;
 
   // UI State
   let selectedCategory: ShiftType | 'ALL' = 'ALL';
   const categories = ['ALL', ...Object.values(ShiftType)];
   let scrollOffset = 0;
 
+  const silenceConsoleLogger = () => {
+    const transports = (logger as any).transports as Array<any> | undefined;
+    if (!transports) return;
+    transports.forEach(t => {
+      if ((t as any).name === 'console') {
+        (t as any).silent = true;
+      }
+    });
+  };
+
   // Cleanup handler
   const cleanup = () => {
+    if (isShuttingDown) return; // Prevent double cleanup
+    isShuttingDown = true;
+
+    // Clear timers first to stop any new renders
     if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
     if (pollTimeout) clearTimeout(pollTimeout);
     if (uiInterval) clearInterval(uiInterval);
+
+    // Remove listeners
     process.stdin.removeListener('keypress', onKeypress);
+    if (process.stdin.pause) {
+      process.stdin.pause();
+    }
+
+    // Show cursor and clear screen
     process.stdout.write('\x1b[?25h'); // Show cursor
-    logger.info('\nGoodbye!');
+    process.stdout.write('\x1b[2J\x1b[0f'); // Clear screen
+
+    // Silence console transport so shutdown logs don't clutter the farewell
+    silenceConsoleLogger();
+    logger.info('Goodbye!');
+    if (process.env.NODE_ENV !== 'test') {
+      // User-facing farewell without JSON metadata noise
+      const farewell = [
+        '',
+        'SpotifyDJ · Session ended gracefully',
+        '',
+        'Thanks for grooving with us. See you next set! ✨',
+        '',
+      ].join('\n');
+      // eslint-disable-next-line no-console
+      console.log(farewell);
+    }
   };
 
   // Async cleanup for graceful shutdown
   const gracefulShutdown = async () => {
+    if (isShuttingDown) return;
     cleanup();
     await disconnectPrisma();
     process.exit(0);
@@ -163,6 +196,7 @@ async function main() {
 
   // Keypress Handler
   const onKeypress = (str: string, key: readline.Key) => {
+    if (isShuttingDown) return;
     if (key.ctrl && key.name === 'c') {
       if (showExitWarning) {
         void gracefulShutdown();
@@ -173,7 +207,7 @@ async function main() {
         exitWarningTimeout = setTimeout(() => {
           showExitWarning = false;
           renderCurrentState();
-        }, 1000);
+        }, UI.EXIT_WARNING_TIMEOUT);
       }
     } else if (key.name === 'tab') {
       // Cycle categories
@@ -201,10 +235,13 @@ async function main() {
   process.stdin.on('keypress', onKeypress);
 
   const renderCurrentState = () => {
+    // Don't render if shutdown is in progress
+    if (isShuttingDown) return;
+
     const logs = isDebugMode ? getLogs() : [];
 
     // Check minimum terminal width
-    const terminalWidth = process.stdout.columns || MIN_TERMINAL_WIDTH;
+    const terminalWidth = process.stdout.columns || UI.MIN_TERMINAL_WIDTH;
     if (isTerminalTooNarrow(terminalWidth)) {
       renderNarrowWarning(terminalWidth);
       return;
@@ -256,7 +293,8 @@ async function main() {
 
   // Smart Polling Logic
   const pollLoop = async () => {
-    let nextPollDelay = DEFAULT_POLL_INTERVAL;
+    if (isShuttingDown) return;
+    let nextPollDelay: number = POLLING.DEFAULT_INTERVAL;
 
     try {
       const trackData = await pollCurrentlyPlaying();
@@ -349,19 +387,18 @@ async function main() {
         if (currentTrack && currentTrack.isPlaying) {
           const remainingMs = currentTrack.duration_ms - currentTrack.progress_ms;
 
-          if (remainingMs <= TRANSITION_THRESHOLD) {
+          if (remainingMs <= POLLING.TRANSITION_THRESHOLD) {
             // Near end: Poll fast to catch transition
-            nextPollDelay = FAST_POLL_INTERVAL;
-          } else if (remainingMs > 20000) {
-            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
-            nextPollDelay = MAX_POLL_INTERVAL;
+            nextPollDelay = POLLING.FAST_INTERVAL;
+          } else if (remainingMs > 20000) {            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
+            nextPollDelay = POLLING.MAX_INTERVAL;
           } else {
             // Medium time remaining: Poll halfway or standard
-            nextPollDelay = DEFAULT_POLL_INTERVAL;
+            nextPollDelay = POLLING.DEFAULT_INTERVAL;
           }
         } else {
           // Paused: Poll standard/slow
-          nextPollDelay = DEFAULT_POLL_INTERVAL;
+          nextPollDelay = POLLING.DEFAULT_INTERVAL;
         }
       } else {
         currentTrack = null;
@@ -369,25 +406,27 @@ async function main() {
         lastTrackId = null;
         debugMessage = undefined;
         // Nothing playing: Poll standard
-        nextPollDelay = DEFAULT_POLL_INTERVAL;
+        nextPollDelay = POLLING.DEFAULT_INTERVAL;
       }
     } catch (error) {
       // console.error("Error in poll loop:", error); // Don't log to stdout to keep UI clean, rely on debugMessage
       const err = error as Error;
       debugMessage = `Poll Error: ${err.message || 'Unknown error'}`;
-      nextPollDelay = DEFAULT_POLL_INTERVAL;
+      nextPollDelay = POLLING.DEFAULT_INTERVAL;
     }
 
-    // Schedule next poll
-    pollTimeout = setTimeout(pollLoop, nextPollDelay);
+    // Schedule next poll only if not shutting down
+    if (!isShuttingDown) {
+      pollTimeout = setTimeout(pollLoop, nextPollDelay);
+    }
   };
 
   // Register cleanup handlers
   process.on('exit', cleanup);
-  process.on('SIGTERM', () => {
+  process.once('SIGTERM', () => {
     void gracefulShutdown();
   });
-  process.on('SIGINT', () => {
+  process.once('SIGINT', () => {
     void gracefulShutdown();
   });
 
@@ -401,8 +440,10 @@ async function main() {
 
   // UI Loop (separate independent loop for smooth animations)
   uiInterval = setInterval(() => {
-    renderCurrentState();
-  }, UI_REFRESH_RATE);
+    if (!isShuttingDown) {
+      renderCurrentState();
+    }
+  }, UI.REFRESH_RATE);
 
   // Initial clear
   process.stdout.write('\x1b[2J\x1b[0f');

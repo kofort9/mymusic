@@ -11,15 +11,19 @@ class MemoryTransport extends Transport {
         super(opts);
     }
 
-    log(info: any, callback: () => void) {
+    log(info: Record<string, unknown>, callback: () => void) {
         setImmediate(() => {
             this.emit('logged', info);
         });
 
         const timestamp = new Date().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
-        const message = `[${timestamp}] ${info.level.toUpperCase()}: ${info.message}`;
+        const level = (info.level as string) || 'info';
+        const message = (info.message as string) || '';
+        const errorMeta = info.error as { message?: string } | undefined;
+        const detailedError = errorMeta?.message ? ` | ${errorMeta.message}` : '';
+        const formattedMessage = `[${timestamp}] ${level.toUpperCase()}: ${message}${detailedError}`;
 
-        this.logs.push(message);
+        this.logs.push(formattedMessage);
         if (this.logs.length > this.MAX_LOGS) {
             this.logs.shift();
         }

@@ -25,4 +25,15 @@
 
 - Library refresh automation is partial: there is now a `refresh:library` script and `r` hotkey to reseed from `Liked_Songs.csv`, but Exportify pull and SongBPM backfill remain manual.
 - Coverage debt: `audioProcessor.ts`, `spotifyProvider.ts`, `main.ts`, and `refreshLibrary.ts` remain low on branch coverage; add tests for provider chain edge cases, Spotify error paths, main-loop error handling, and refresh CLI failures.
-- Add a first-run setup wizard: detect empty/no-library state, prompt to export liked songs via Exportify, drop `Liked_Songs.csv`, and optionally collect parse.bot API key to enable SongBPM fallback.
+
+## Code Quality & Best Practices
+
+### Low Priority
+
+- **Code organization**: Consider extracting large functions (>50 lines) into smaller, testable units:
+  - `main.ts:triggerLibraryRefresh` (60+ lines)
+  - `main.ts:pollLoop` (could benefit from extraction of recommendation logic)
+- **Documentation**: Add JSDoc comments to public API functions in core modules
+- **Type safety improvements**: Future consideration
+  - Review all casts to `as Error` for potential type guards
+  - Add stricter type definitions for API responses
