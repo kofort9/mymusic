@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+
+const distEntry = path.join(__dirname, '../dist/main.js');
+
+if (fs.existsSync(distEntry)) {
+  require(distEntry);
+} else {
+  try {
+    require('ts-node/register');
+    require(path.join(__dirname, '../src/main.ts'));
+  } catch (err) {
+    console.error('Build output missing and ts-node not available. Run "npm install" then "npm run build".');
+    process.exit(1);
+  }
+}
