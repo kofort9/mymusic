@@ -381,7 +381,9 @@ describe('Display', () => {
 
       const calls = consoleLogSpy.mock.calls;
       const output = calls.map(call => call[0]?.toString() || '').join('\n');
-      expect(output).toContain('Camel Code: -');
+      // Strip ANSI codes for comparison and check for Camelot label with missing key
+      const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+      expect(cleanOutput).toMatch(/Camelot:\s+-/);
     });
   });
 });

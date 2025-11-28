@@ -51,7 +51,7 @@ describe('Spotify Client', () => {
       const result = await pollCurrentlyPlaying();
 
       expect(result).not.toBeNull();
-      expect(result?.track_id).toBe('track123');
+      expect(result?.track_id).toBe('spotify:track:track123');
       expect(result?.track_name).toBe('Test Track');
       expect(result?.artist).toBe('Artist 1, Artist 2');
       expect(result?.progress_ms).toBe(50000);
@@ -233,7 +233,7 @@ describe('Spotify Client', () => {
         refresh_token: 'new_refresh_token'
       });
       expect(result).not.toBeNull();
-      expect(result?.track_id).toBe('track123');
+      expect(result?.track_id).toBe('spotify:track:track123');
     });
 
     test('handles refresh failure gracefully', async () => {

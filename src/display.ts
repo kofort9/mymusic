@@ -19,10 +19,10 @@ const colors = {
   bgBlack: "\x1b[40m",
   fgBlack: "\x1b[30m",
   spotifyGreen: "\x1b[38;2;29;185;84m",
-  lightGreen: "\x1b[92m", 
-  zshGreen: "\x1b[32m", 
-  zshBlue: "\x1b[34m",  
-  zshYellow: "\x1b[33m" 
+  lightGreen: "\x1b[92m",
+  zshGreen: "\x1b[32m",
+  zshBlue: "\x1b[34m",
+  zshYellow: "\x1b[33m"
 };
 
 // Helper to convert Hex to ANSI 24-bit color
@@ -37,7 +37,13 @@ const packageJson = require('../package.json');
 const VERSION = `v${packageJson.version}`;
 
 export class PhraseCounter {
-  calculate(bpm: number, progressMs: number, timestamp: number, timeSignature?: number): PhraseInfo {
+  calculate(
+    bpm: number,
+    progressMs: number,
+    timestamp: number,
+    timeSignature?: number,
+    isPlaying: boolean = true
+  ): PhraseInfo {
     // Handle zero or negative BPM gracefully
     if (bpm <= 0) {
       return { beatsRemaining: 32, timeRemainingSeconds: 0, phraseCount: 1 };
@@ -45,20 +51,20 @@ export class PhraseCounter {
 
     const now = Date.now();
     const safeTimestamp = timestamp > 0 ? timestamp : now;
-    
-    const elapsed = now - safeTimestamp;
+
+    const elapsed = isPlaying ? now - safeTimestamp : 0;
     const currentProgressMs = progressMs + elapsed;
 
     const beatDurationMs = 60000 / bpm;
 
     const totalBeats = currentProgressMs / beatDurationMs;
-    
+
     // Phrase counter only valid for 4/4 time
     // For other time signatures, return a default or skip
     if (timeSignature && timeSignature !== 4) {
       return { beatsRemaining: 0, timeRemainingSeconds: 0, phraseCount: 0 };
     }
-    
+
     const beatsInPhrase = 32; // 32 beats = 8 bars of 4/4
     const positionInPhrase = totalBeats % beatsInPhrase;
     const beatsRemaining = beatsInPhrase - positionInPhrase;
@@ -75,30 +81,32 @@ export class PhraseCounter {
 
 // Helper to center text in a given width
 function center(text: string, width: number): string {
-  const len = text.replace(/\x1b\[[0-9;]*m/g, '').length; 
+  const len = text.replace(/\x1b\[[0-9;]*m/g, '').length;
   if (len >= width) return text;
   const padLeft = Math.floor((width - len) / 2);
   return " ".repeat(padLeft) + text + " ".repeat(width - len - padLeft);
 }
 
 export function renderTrainBoard(
-  currentTrack: CurrentTrack | null, 
-  recommendations: MatchedTrack[], 
+  currentTrack: CurrentTrack | null,
+  recommendations: MatchedTrack[],
   phraseInfo: PhraseInfo | null,
   showExitWarning: boolean = false,
   debugMessage?: string,
-  logs: string[] = []
+  logs: string[] = [],
+  selectedCategory: ShiftType | 'ALL' = 'ALL',
+  scrollOffset: number = 0
 ): void {
-  process.stdout.write('\x1b[2J\x1b[0f'); 
+  process.stdout.write('\x1b[2J\x1b[0f');
 
   const terminalWidth = process.stdout.columns || 80;
   const terminalHeight = process.stdout.rows || 24;
-  
+
   // Allow UI to grow wider than 80 chars for better use of space
-  const uiWidth = Math.min(terminalWidth, 120); 
+  const uiWidth = Math.min(terminalWidth, 120);
   const effectiveWidth = Math.max(62, uiWidth - 2);
 
-  const title = "ᯤ Spotify RT DJ Assistant (MVP)";
+  const title = `${colors.spotifyGreen}ᯤ Spotify${colors.reset} RT DJ Assistant (MVP)`;
   const horizontalLine = "═".repeat(effectiveWidth);
 
   console.log(`${colors.bright}${colors.cyan}╔${horizontalLine}╗${colors.reset}`);
@@ -113,49 +121,45 @@ export function renderTrainBoard(
     const now = Date.now();
     const isFlashOn = currentTrack.isPlaying && Math.floor(now / 500) % 2 === 0;
     const recordIndicator = isFlashOn ? `${colors.spotifyGreen}⏺${colors.reset}` : `${colors.dim}⏺${colors.reset}`;
-    
+
     const trackName = `${colors.bright}${currentTrack.track_name}${colors.reset}`;
     const artistName = `${colors.bright}${currentTrack.artist}${colors.reset}`;
     const rawInfo = `${currentTrack.track_name} — ${currentTrack.artist}`;
-    const maxInfoWidth = effectiveWidth - 10; 
-    
+    const maxInfoWidth = effectiveWidth - 10;
+
     let displayInfo = `${trackName} — ${artistName}`;
     if (rawInfo.length > maxInfoWidth) {
-        const truncatedRaw = rawInfo.substring(0, maxInfoWidth - 1) + "…";
-        displayInfo = `${colors.bright}${truncatedRaw}${colors.reset}`; 
+      const truncatedRaw = rawInfo.substring(0, maxInfoWidth - 1) + "…";
+      displayInfo = `${colors.bright}${truncatedRaw}${colors.reset}`;
     }
-    
+
     console.log(`💿  ${displayInfo} ${recordIndicator}`);
+
+    // BPM and Camelot on line directly below track info
+    const bpmVal = currentTrack.audio_features?.tempo?.toFixed(1) || '0.0';
+    const camelVal = currentTrack.camelot_key || "-";
+
+    let coloredCamel = camelVal;
+    if (currentTrack.camelot_key) {
+      const hex = getCamelotColor(currentTrack.camelot_key);
+      const ansiColor = hexToAnsi(hex);
+      coloredCamel = `${ansiColor}${colors.bright}${camelVal}${colors.reset}`;
+    }
+
+    const detailsStr = `${colors.bright}BPM:${colors.reset} ${bpmVal}  ${colors.dim}•${colors.reset}  ${colors.bright}Camelot:${colors.reset} ${coloredCamel}`;
+    console.log(`    ${detailsStr}`);
     console.log('');
 
     const elapsed = now - currentTrack.timestamp;
     const currentMs = Math.min(currentTrack.progress_ms + (currentTrack.isPlaying ? elapsed : 0), currentTrack.duration_ms);
     // Dynamic progress bar width: 40% of terminal width, minimum 40 (per NEWIDEAS.md), maximum 60
-    const barWidth = Math.max(40, Math.min(60, Math.floor(effectiveWidth * 0.5))); 
+    const barWidth = Math.max(40, Math.min(60, Math.floor(effectiveWidth * 0.5)));
     const percent = Math.min(1, Math.max(0, currentMs / currentTrack.duration_ms));
     const filledLen = Math.round(barWidth * percent);
     const emptyLen = barWidth - filledLen;
     const bar = "▰".repeat(filledLen) + "▱".repeat(emptyLen);
-    
-    console.log(`  ${bar}`); 
-    console.log('');
 
-    const separator = "─".repeat(effectiveWidth);
-    console.log(`${colors.dim}${separator}${colors.reset}`);
-    console.log('');
-
-    const bpmVal = currentTrack.audio_features.tempo.toFixed(1);
-    const camelVal = currentTrack.camelot_key || "-";
-    
-    let coloredCamel = camelVal;
-    if (currentTrack.camelot_key) {
-        const hex = getCamelotColor(currentTrack.camelot_key);
-        const ansiColor = hexToAnsi(hex);
-        coloredCamel = `${ansiColor}${camelVal}${colors.reset}`;
-    }
-    
-    const detailsStr = `BPM: ${bpmVal}          •          Camel Code: ${coloredCamel}`;
-    console.log(detailsStr);
+    console.log(`  ${bar}`);
     console.log('');
 
     if (phraseInfo) {
@@ -176,21 +180,52 @@ export function renderTrainBoard(
     }
   }
 
-  console.log(`${colors.bright}${colors.spotifyGreen}⚡ Recommendations${colors.reset}`);
-  
+  // Render Tabs
+  const categories = ['ALL', ...Object.values(ShiftType)];
+  const tabs = categories.map(cat => {
+    return cat === selectedCategory
+      ? `${colors.bgBlue}${colors.white} ${cat} ${colors.reset}`
+      : `${colors.dim} ${cat} ${colors.reset}`;
+  }).join(' ');
+
+  const currentBpm = currentTrack ? currentTrack.audio_features?.tempo?.toFixed(1) || '0.0' : '0.0';
+  console.log(`\n${colors.bright}${colors.spotifyGreen}⚡ Recommendations${colors.reset} ${colors.dim}(Current: ${currentBpm} BPM)${colors.reset}`);
+
+  console.log(tabs);
+  console.log(`${colors.dim}${"─".repeat(effectiveWidth)}${colors.reset}`);
+
   if (recommendations.length === 0) {
     console.log(`${colors.dim}No harmonic matches found in library.${colors.reset}`);
     if (debugMessage) {
-        console.log(`${colors.red}DEBUG: ${debugMessage}${colors.reset}`);
+      console.log(`${colors.red}DEBUG: ${debugMessage}${colors.reset}`);
     }
   } else {
-    const grouped = recommendations.reduce((acc, track) => {
-      acc[track.shiftType] = acc[track.shiftType] || [];
-      acc[track.shiftType].push(track);
-      return acc;
-    }, {} as Record<ShiftType, MatchedTrack[]>);
+    // Filter recommendations based on selected category
+    let filteredRecs = recommendations;
+    if (selectedCategory !== 'ALL') {
+      filteredRecs = recommendations.filter(r => r.shiftType === selectedCategory);
+    }
 
-    for (const type of Object.values(ShiftType)) {
+    // Grouping logic (simplified for flat list with headers if ALL)
+    const grouped: Record<string, MatchedTrack[]> = {};
+    if (selectedCategory === 'ALL') {
+      filteredRecs.forEach(track => {
+        grouped[track.shiftType] = grouped[track.shiftType] || [];
+        grouped[track.shiftType].push(track);
+      });
+    } else {
+      grouped[selectedCategory] = filteredRecs;
+    }
+
+    // Flatten for display to handle scrolling
+    const displayLines: string[] = [];
+
+    // Order of types for ALL view
+    const typeOrder = Object.values(ShiftType);
+
+    const typesToRender = selectedCategory === 'ALL' ? typeOrder : [selectedCategory as ShiftType];
+
+    for (const type of typesToRender) {
       const tracks = grouped[type];
       if (tracks && tracks.length > 0) {
         let typeColor = colors.white;
@@ -199,14 +234,49 @@ export function renderTrainBoard(
         if (type === ShiftType.MOOD_SWITCH) typeColor = colors.magenta;
         if (type === ShiftType.RHYTHMIC_BREAKER) typeColor = colors.red;
 
-        console.log(`${typeColor}• ${type}${colors.reset}`);
+        // Always add category header
+        if (selectedCategory === 'ALL') {
+          displayLines.push(`${typeColor}▼ ${type}${colors.reset}`);
+        } else {
+          displayLines.push(`${colors.bright}${typeColor}${type}${colors.reset}`);
+        }
+
         tracks.forEach(track => {
           const hex = getCamelotColor(track.camelot_key);
           const ansiColor = hexToAnsi(hex);
           const coloredKey = `${ansiColor}[${track.camelot_key}]${colors.reset}`;
-          console.log(`  ${coloredKey} ${track.track_name} - ${track.artist} (${track.bpm} BPM)`);
+
+          // Calculate BPM percentage difference
+          let bpmDiffStr = '';
+          if (currentTrack && currentTrack.audio_features?.tempo) {
+            const bpmDiff = ((track.bpm - currentTrack.audio_features.tempo) / currentTrack.audio_features.tempo) * 100;
+            bpmDiffStr = bpmDiff >= 0 ? `+${bpmDiff.toFixed(1)}%` : `${bpmDiff.toFixed(1)}%`;
+            const bpmColor = Math.abs(bpmDiff) > 5 ? colors.yellow : colors.dim;
+            bpmDiffStr = ` ${bpmColor}${bpmDiffStr}${colors.reset}`;
+          }
+
+          displayLines.push(`  ${coloredKey} ${track.track_name} - ${track.artist} (${track.bpm.toFixed(1)} BPM)${bpmDiffStr}`);
         });
       }
+    }
+
+    // Pagination / Scrolling
+    const maxLines = Math.max(5, terminalHeight - 25); // Approximate available space
+    const totalLines = displayLines.length;
+
+    // Ensure scrollOffset is valid
+    if (scrollOffset < 0) scrollOffset = 0;
+    if (scrollOffset > totalLines - maxLines) scrollOffset = Math.max(0, totalLines - maxLines);
+
+    const visibleLines = displayLines.slice(scrollOffset, scrollOffset + maxLines);
+
+    visibleLines.forEach(line => console.log(line));
+
+    if (totalLines > maxLines) {
+      const progress = Math.round((scrollOffset / (totalLines - maxLines)) * 100);
+      console.log(`${colors.dim}... ${totalLines - (scrollOffset + maxLines)} more (Scroll: ${progress}%) ...${colors.reset}`);
+    } else if (visibleLines.length === 0 && totalLines > 0) {
+      console.log(`${colors.dim} (Scroll up to see tracks) ${colors.reset}`);
     }
   }
 
@@ -222,23 +292,25 @@ export function renderTrainBoard(
 }
 
 function renderStatusBar(width: number, height: number, showWarning: boolean) {
-  const startRow = height - 2; 
+  const startRow = height - 2;
   process.stdout.write(`\x1b[${startRow};0f`);
-  
+
   const separator = "───────────────────────────────────────────────────────────────────────";
   console.log(`${colors.dim}${separator}${colors.reset}`);
-  
+
   if (showWarning) {
-      const warningMsg = "Press Ctrl-C again to exit";
-      console.log(` ${warningMsg} `); 
+    const warningMsg = "Press Ctrl-C again to exit";
+    console.log(` ${warningMsg} `);
   } else {
-      const username = process.env.USER || os.userInfo().username;
-      const hostname = os.hostname().split('.')[0];
-      const userHost = `${username}@${hostname}`;
-      const cwd = process.cwd().replace(os.homedir(), '~');
-      const branch = "<main>"; // Could be read from git if needed
-      
-      console.log(`${colors.zshGreen}${userHost}${colors.reset}`);
-      process.stdout.write(`${colors.zshBlue}${cwd}  ${colors.zshYellow}${branch}${colors.reset}`);
+    const username = process.env.USER || os.userInfo().username;
+    const hostname = os.hostname().split('.')[0];
+    const userHost = `${username}@${hostname}`;
+    const cwd = process.cwd().replace(os.homedir(), '~');
+    const branch = "<main>"; // Could be read from git if needed
+
+    const controls = "w/s: scroll | tab: category | r: refresh";
+
+    console.log(`${colors.zshGreen}${userHost}${colors.reset} | ${colors.white}${controls}${colors.reset}`);
+    process.stdout.write(`${colors.zshBlue}${cwd}  ${colors.zshYellow}${branch}${colors.reset}`);
   }
 }
