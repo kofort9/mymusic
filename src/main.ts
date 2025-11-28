@@ -4,7 +4,7 @@ import { getAudioFeatures } from './audioProcessor';
 import { convertToCamelot } from './camelot';
 import { loadLibrary } from './library';
 import { getCompatibleKeys, filterMatches } from './mixingEngine';
-import { PhraseCounter, renderTrainBoard } from './display';
+import { PhraseCounter, renderNarrowWarning, renderTrainBoard } from './display';
 import { CurrentTrack, MatchedTrack, ShiftType, LibraryTrack } from './types';
 import { refreshLibrary } from './refreshLibrary';
 import * as readline from 'readline';
@@ -51,7 +51,9 @@ async function main() {
     await authenticate();
     Logger.log('Authenticated with Spotify.');
   } catch (error) {
-    Logger.error('Authentication failed:', error);
+    Logger.error('Authentication failed. Check your Spotify credentials and try again.', error);
+    console.error('\nAuthentication failed. Ensure SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI are set in .env and re-run `npm start`.');
+    console.error('If prompted, complete the browser login to Spotify so tokens.json can be saved locally.\n');
     process.exit(1);
   }
 
@@ -74,6 +76,22 @@ async function main() {
   const categories = ['ALL', ...Object.values(ShiftType)];
   let scrollOffset = 0;
 
+  // Cleanup handler
+  const cleanup = () => {
+    if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
+    if (pollTimeout) clearTimeout(pollTimeout);
+    if (uiInterval) clearInterval(uiInterval);
+    process.stdout.write('\x1b[?25h'); // Show cursor
+    Logger.log('\nGoodbye!');
+  };
+
+  // Async cleanup for graceful shutdown
+  const gracefulShutdown = async () => {
+    cleanup();
+    await disconnectPrisma();
+    process.exit(0);
+  };
+
   const triggerLibraryRefresh = async () => {
     if (isRefreshingLibrary) {
       debugMessage = 'Library refresh already running...';
@@ -92,9 +110,38 @@ async function main() {
         debugMessage = 'Library refreshed.';
 
         if (currentTrack) {
-          const compatibleKeys = getCompatibleKeys(currentTrack.camelot_key);
-          const useRelaxedFilter = selectedCategory === 'ALL';
-          recommendations = filterMatches(currentTrack, library, compatibleKeys, useRelaxedFilter);
+          // Use current track features if available, otherwise fall back to library values
+          const libraryMatch = library.find(t => t.track_id === currentTrack?.track_id);
+          const effectiveCamelot = (
+            currentTrack.camelot_key ||
+            libraryMatch?.camelot_key ||
+            ''
+          ).trim();
+          const effectiveBpm = currentTrack.audio_features?.tempo || libraryMatch?.bpm || 0;
+
+          if (!effectiveCamelot || effectiveBpm <= 0) {
+            debugMessage =
+              'Library refreshed. Current track missing BPM/key; waiting for Spotify features or library entry.';
+            recommendations = [];
+          } else {
+            const compatibleKeys = getCompatibleKeys(effectiveCamelot);
+            const useRelaxedFilter = selectedCategory === 'ALL';
+            const updatedTrack: CurrentTrack = {
+              ...currentTrack,
+              camelot_key: effectiveCamelot,
+              audio_features: {
+                ...currentTrack.audio_features,
+                tempo: effectiveBpm,
+              },
+            };
+            recommendations = filterMatches(
+              updatedTrack,
+              library,
+              compatibleKeys,
+              useRelaxedFilter
+            );
+            currentTrack = updatedTrack;
+          }
         }
       } else {
         debugMessage = `Refresh failed: ${result.error || 'Unknown error'}`;
@@ -112,7 +159,7 @@ async function main() {
   process.stdin.on('keypress', (str, key) => {
     if (key.ctrl && key.name === 'c') {
       if (showExitWarning) {
-        process.exit(0); // Cleanup handler will be called automatically
+        void gracefulShutdown();
       } else {
         showExitWarning = true;
         renderCurrentState();
@@ -151,11 +198,7 @@ async function main() {
     // Check minimum terminal width
     const terminalWidth = process.stdout.columns || MIN_TERMINAL_WIDTH;
     if (isTerminalTooNarrow(terminalWidth)) {
-      process.stdout.write('\x1b[2J\x1b[0f');
-      console.log('\n⚠️  Terminal too narrow!');
-      console.log(`Minimum width: 80 characters`);
-      console.log(`Current width: ${terminalWidth} characters`);
-      console.log(`\nPlease resize your terminal window.`);
+      renderNarrowWarning(terminalWidth);
       return;
     }
 
@@ -170,6 +213,25 @@ async function main() {
       );
     }
 
+    const notices: string[] = [];
+    const currentTrackId = currentTrack?.track_id;
+    const libraryMatch = currentTrackId
+      ? library.find(track => track.track_id === currentTrackId)
+      : undefined;
+
+    const hasTempo = Boolean(currentTrack?.audio_features?.tempo && currentTrack.audio_features.tempo > 0);
+    const hasCamelot = Boolean(currentTrack?.camelot_key);
+    const libHasTempo = Boolean(libraryMatch?.bpm && libraryMatch.bpm > 0);
+    const libHasCamelot = Boolean(libraryMatch?.camelot_key);
+
+    if (!currentTrack) {
+      notices.push('No playback detected on Spotify. Start a track to see harmonic matches.');
+    } else if (!hasTempo || !hasCamelot || !libHasTempo || !libHasCamelot) {
+      notices.push(
+        'Missing BPM/Key for current track. Press r to refresh library or enable SongBPM fallback in .env.'
+      );
+    }
+
     renderTrainBoard(
       currentTrack,
       recommendations,
@@ -179,7 +241,8 @@ async function main() {
       logs,
       selectedCategory,
       scrollOffset,
-      showHelp
+      showHelp,
+      notices
     );
   };
 
@@ -311,25 +374,13 @@ async function main() {
     pollTimeout = setTimeout(pollLoop, nextPollDelay);
   };
 
-  // Cleanup handler
-  const cleanup = () => {
-    if (exitWarningTimeout) clearTimeout(exitWarningTimeout);
-    if (pollTimeout) clearTimeout(pollTimeout);
-    if (uiInterval) clearInterval(uiInterval);
-    process.stdout.write('\x1b[?25h'); // Show cursor
-    void disconnectPrisma();
-    Logger.log('\nGoodbye!');
-  };
-
   // Register cleanup handlers
   process.on('exit', cleanup);
   process.on('SIGTERM', () => {
-    cleanup();
-    process.exit(0);
+    void gracefulShutdown();
   });
   process.on('SIGINT', () => {
-    cleanup();
-    process.exit(0);
+    void gracefulShutdown();
   });
 
   // Handle terminal resize

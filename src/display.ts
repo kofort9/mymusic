@@ -102,6 +102,13 @@ type RippleState = {
   phase: number;
 };
 
+const CLEAR_TO_END = '\x1b[0K';
+let previousFrame: string[] = [];
+
+function resetFrameCache(): void {
+  previousFrame = [];
+}
+
 function buildRippleState(frameWidth: number, frameHeight: number, isActive: boolean): RippleState {
   const virtualHeight = Math.max(6, Math.min(frameHeight, 60));
   const cycle = frameWidth + virtualHeight;
@@ -269,20 +276,73 @@ function buildScanlineBar(beatsRemaining: number): { bar: string; labelColor: st
   return { bar: colored.join(''), labelColor };
 }
 
-function renderHelpPanel(width: number): void {
+function buildHelpPanel(width: number): string[] {
   const separator = '─'.repeat(width);
-  console.log(`${colors.dim}${separator}${colors.reset}`);
-  console.log(`${colors.bright}${colors.cyan}HELP${colors.reset}`);
-  console.log(`${colors.dim}${separator}${colors.reset}`);
-  console.log(
-    `${colors.bright}h${colors.reset}: toggle help   ${colors.bright}tab${colors.reset}: categories   ${colors.bright}w/s${colors.reset}: scroll`
-  );
-  console.log(
-    `${colors.bright}r${colors.reset}: refresh library   ${colors.bright}Ctrl+C${colors.reset}: exit`
-  );
-  console.log(
-    `${colors.dim}Scanline glow speeds up near the mix window and locks red inside the final 8 beats.${colors.reset}`
-  );
+  return [
+    `${colors.dim}${separator}${colors.reset}`,
+    `${colors.bright}${colors.cyan}HELP${colors.reset}`,
+    `${colors.dim}${separator}${colors.reset}`,
+    `${colors.bright}h${colors.reset}: toggle help   ${colors.bright}tab${colors.reset}: categories   ${colors.bright}w/s${colors.reset}: scroll`,
+    `${colors.bright}r${colors.reset}: refresh library   ${colors.bright}Ctrl+C${colors.reset}: exit`,
+    `${colors.dim}Scanline glow speeds up near the mix window and locks red inside the final 8 beats.${colors.reset}`,
+  ];
+}
+
+function writeFrame(lines: string[]): void {
+  const maxRows = Math.max(lines.length, previousFrame.length);
+  // Move cursor home
+  process.stdout.write('\x1b[H');
+
+  for (let i = 0; i < maxRows; i++) {
+    const next = lines[i] ?? '';
+    const prev = previousFrame[i] ?? '';
+    if (next !== prev) {
+      process.stdout.write(`\x1b[${i + 1};1H${next}${CLEAR_TO_END}`);
+    }
+  }
+
+  previousFrame = lines.slice();
+}
+
+export function renderNarrowWarning(width: number): void {
+  resetFrameCache();
+  const lines = [
+    '',
+    `${colors.yellow}⚠️  Terminal too narrow!${colors.reset}`,
+    `Minimum width: 80 characters`,
+    `Current width: ${width} characters`,
+    '',
+    'Please resize your terminal window.',
+  ];
+  writeFrame(lines);
+}
+
+function buildStatusBar(
+  width: number,
+  showWarning: boolean,
+  ripple: RippleState,
+  rowIndex: number
+): string[] {
+  const statusWidth = Math.min(width, 120);
+  const effectiveWidth = Math.max(62, statusWidth - 2);
+  const separator = buildRippleBorderLine(effectiveWidth, rowIndex, ripple, true);
+
+  if (showWarning) {
+    return [separator, ' Press Ctrl-C again to exit '];
+  }
+
+  const username = process.env.USER || os.userInfo().username;
+  const hostname = os.hostname().split('.')[0];
+  const userHost = `${username}@${hostname}`;
+  const cwd = process.cwd().replace(os.homedir(), '~');
+  const branch = '<main>';
+  const controls = 'w/s: scroll | tab: category | r: refresh | h: help';
+
+  return [
+    separator,
+    `${colors.zshGreen}${userHost}${colors.reset} | ${colors.white}${controls}${colors.reset}`,
+    `${colors.zshBlue}${cwd}  ${colors.zshYellow}${branch}${colors.reset}`,
+  ];
 }
 
 export function renderTrainBoard(
@@ -294,12 +354,12 @@ export function renderTrainBoard(
   logs: string[] = [],
   selectedCategory: ShiftType | 'ALL' = 'ALL',
   scrollOffset = 0,
-  showHelp = false
+  showHelp = false,
+  notices: string[] = []
 ): void {
-  process.stdout.write('\x1b[2J\x1b[0f');
-
   const terminalWidth = process.stdout.columns || 80;
   const terminalHeight = process.stdout.rows || 24;
+  const lines: string[] = [];
 
   // Allow UI to grow wider than 80 chars for better use of space
   const uiWidth = Math.min(terminalWidth, 120);
@@ -307,20 +367,25 @@ export function renderTrainBoard(
   const frameWidth = effectiveWidth + 2;
   const ripple = buildRippleState(frameWidth, terminalHeight, Boolean(currentTrack));
 
-  const title = `${colors.spotifyGreen}ᯤ Spotify${colors.reset} RT DJ Assistant (MVP)`;
+  const title = `${colors.spotifyGreen}ᯤ SpotifyDJ${colors.reset} — Real-Time DJ Assistant`;
 
-  const topLine = buildRippleBorderLine(effectiveWidth, 0, ripple);
-  const middleLine = buildRippleTitleLine(title, effectiveWidth, 1, ripple);
-  const bottomLine = buildRippleBorderLine(effectiveWidth, 2, ripple, true);
+  const topLine = buildRippleBorderLine(effectiveWidth, lines.length, ripple);
+  lines.push(topLine);
+  const middleLine = buildRippleTitleLine(title, effectiveWidth, lines.length, ripple);
+  lines.push(middleLine);
+  const bottomLine = buildRippleBorderLine(effectiveWidth, lines.length, ripple, true);
+  lines.push(bottomLine);
+  lines.push(`${colors.dim}Version: ${VERSION}${colors.reset}`, '');
 
-  console.log(topLine);
-  console.log(middleLine);
-  console.log(bottomLine);
-  console.log(`${colors.dim}Version: ${VERSION}${colors.reset}`);
-  console.log('');
+  if (notices.length > 0) {
+    notices.forEach(note => {
+      lines.push(`${colors.yellow}⚠️  ${note}${colors.reset}`);
+    });
+    lines.push('');
+  }
 
   if (!currentTrack) {
-    console.log(`${colors.yellow}Waiting for playback...${colors.reset}`);
+    lines.push(`${colors.yellow}Waiting for playback...${colors.reset}`);
   } else {
     const now = Date.now();
     const isFlashOn = currentTrack.isPlaying && Math.floor(now / 500) % 2 === 0;
@@ -339,7 +404,7 @@ export function renderTrainBoard(
       displayInfo = `${colors.bright}${truncatedRaw}${colors.reset}`;
     }
 
-    console.log(`💿  ${displayInfo} ${recordIndicator}`);
+    lines.push(`💿  ${displayInfo} ${recordIndicator}`);
 
     // BPM and Camelot on line directly below track info
     const bpmVal = currentTrack.audio_features?.tempo?.toFixed(1) || '0.0';
@@ -353,8 +418,7 @@ export function renderTrainBoard(
     }
 
     const detailsStr = `${colors.bright}BPM:${colors.reset} ${bpmVal}  ${colors.dim}•${colors.reset}  ${colors.bright}Camelot:${colors.reset} ${coloredCamel}`;
-    console.log(`    ${detailsStr}`);
-    console.log('');
+    lines.push(`    ${detailsStr}`, '');
 
     const elapsed = now - currentTrack.timestamp;
     // Calculate current progress accurately
@@ -391,29 +455,28 @@ export function renderTrainBoard(
     const emptyLen = barWidth - filledLen;
     const bar = '▰'.repeat(filledLen) + '▱'.repeat(emptyLen);
 
-    console.log(`  ${bar}`);
-    console.log('');
+    lines.push(`  ${bar}`, '');
 
     if (phraseInfo) {
       // Skip phrase display if not 4/4 time (beatsRemaining = 0 indicates this)
       if (phraseInfo.beatsRemaining > 0) {
-        console.log(`${colors.bright}⏱  Phrase Matching${colors.reset}`);
+        lines.push(`${colors.bright}⏱  Phrase Matching${colors.reset}`);
         const { bar, labelColor } = buildScanlineBar(phraseInfo.beatsRemaining);
-        console.log(bar);
-        console.log(
-          `${labelColor}Beats Rem: ${phraseInfo.beatsRemaining.toFixed(1)} | Time: ${phraseInfo.timeRemainingSeconds.toFixed(1)}s${colors.reset}`
+        lines.push(
+          bar,
+          `${labelColor}Beats Rem: ${phraseInfo.beatsRemaining.toFixed(1)} | Time: ${phraseInfo.timeRemainingSeconds.toFixed(1)}s${colors.reset}`,
+          ''
         );
-        console.log('');
       } else if (
         currentTrack &&
         currentTrack.audio_features.time_signature &&
         currentTrack.audio_features.time_signature !== 4
       ) {
-        console.log(
-          `${colors.yellow}⚠️  Non-4/4 time signature detected (${currentTrack.audio_features.time_signature}/4)${colors.reset}`
+        lines.push(
+          `${colors.yellow}⚠️  Non-4/4 time signature detected (${currentTrack.audio_features.time_signature}/4)${colors.reset}`,
+          `${colors.dim}Phrase counter disabled for non-4/4 tracks${colors.reset}`,
+          ''
         );
-        console.log(`${colors.dim}Phrase counter disabled for non-4/4 tracks${colors.reset}`);
-        console.log('');
       }
     }
   }
@@ -429,17 +492,20 @@ export function renderTrainBoard(
     .join(' ');
 
   const currentBpm = currentTrack ? currentTrack.audio_features?.tempo?.toFixed(1) || '0.0' : '0.0';
-  console.log(
-    `\n${colors.bright}${colors.spotifyGreen}⚡ Recommendations${colors.reset} ${colors.dim}(Current: ${currentBpm} BPM)${colors.reset}`
+  lines.push(
+    `${colors.bright}${colors.spotifyGreen}⚡ Recommendations${colors.reset} ${colors.dim}(Current: ${currentBpm} BPM)${colors.reset}`
   );
 
-  console.log(tabs);
-  console.log(`${colors.dim}${'─'.repeat(effectiveWidth)}${colors.reset}`);
+  lines.push(tabs);
+  lines.push(`${colors.dim}${'─'.repeat(effectiveWidth)}${colors.reset}`);
 
   if (recommendations.length === 0) {
-    console.log(`${colors.dim}No harmonic matches found in library.${colors.reset}`);
+    lines.push(`${colors.dim}No harmonic matches found in library.${colors.reset}`);
+    lines.push(
+      `${colors.dim}Tip: export your liked songs as Liked_Songs.csv (Exportify), drop it in this project, and run \`npm run refresh:library\` or press r.${colors.reset}`
+    );
     if (debugMessage) {
-      console.log(`${colors.red}DEBUG: ${debugMessage}${colors.reset}`);
+      lines.push(`${colors.red}DEBUG: ${debugMessage}${colors.reset}`);
     }
   } else {
     // Filter recommendations based on selected category
@@ -517,58 +583,36 @@ export function renderTrainBoard(
 
     const visibleLines = displayLines.slice(scrollOffset, scrollOffset + maxLines);
 
-    visibleLines.forEach(line => console.log(line));
+    visibleLines.forEach(line => lines.push(line));
 
     if (totalLines > maxLines) {
       const progress = Math.round((scrollOffset / (totalLines - maxLines)) * 100);
-      console.log(
+      lines.push(
         `${colors.dim}... ${totalLines - (scrollOffset + maxLines)} more (Scroll: ${progress}%) ...${colors.reset}`
       );
     } else if (visibleLines.length === 0 && totalLines > 0) {
-      console.log(`${colors.dim} (Scroll up to see tracks) ${colors.reset}`);
+      lines.push(`${colors.dim} (Scroll up to see tracks) ${colors.reset}`);
     }
   }
 
   if (logs.length > 0) {
-    console.log('');
     const separator = '─'.repeat(effectiveWidth);
-    console.log(`${colors.dim}${separator}${colors.reset}`);
-    console.log(`${colors.bright}${colors.red}DEBUG LOGS:${colors.reset}`);
-    logs.forEach(log => console.log(`${colors.dim}${log}${colors.reset}`));
+    lines.push('', `${colors.dim}${separator}${colors.reset}`, `${colors.bright}${colors.red}DEBUG LOGS:${colors.reset}`);
+    logs.forEach(log => lines.push(`${colors.dim}${log}${colors.reset}`));
   }
 
   if (showHelp) {
-    console.log('');
-    renderHelpPanel(effectiveWidth);
+    lines.push('');
+    lines.push(...buildHelpPanel(effectiveWidth));
   }
 
-  renderStatusBar(terminalWidth, terminalHeight, showExitWarning, ripple);
-}
-
-function renderStatusBar(width: number, height: number, showWarning: boolean, ripple: RippleState) {
-  const startRow = height - 2;
-  process.stdout.write(`\x1b[${startRow};0f`);
-
-  const statusWidth = Math.min(width, 120);
-  const effectiveWidth = Math.max(62, statusWidth - 2);
-  const separator = buildRippleBorderLine(effectiveWidth, startRow, ripple, true);
-  console.log(separator);
-
-  if (showWarning) {
-    const warningMsg = 'Press Ctrl-C again to exit';
-    console.log(` ${warningMsg} `);
-  } else {
-    const username = process.env.USER || os.userInfo().username;
-    const hostname = os.hostname().split('.')[0];
-    const userHost = `${username}@${hostname}`;
-    const cwd = process.cwd().replace(os.homedir(), '~');
-    const branch = '<main>'; // Could be read from git if needed
-
-    const controls = 'w/s: scroll | tab: category | r: refresh | h: help';
-
-    console.log(
-      `${colors.zshGreen}${userHost}${colors.reset} | ${colors.white}${controls}${colors.reset}`
-    );
-    process.stdout.write(`${colors.zshBlue}${cwd}  ${colors.zshYellow}${branch}${colors.reset}`);
+  const statusLineCount = showExitWarning ? 2 : 3;
+  const statusStartRow = Math.max(terminalHeight - statusLineCount, lines.length);
+  const statusLines = buildStatusBar(terminalWidth, showExitWarning, ripple, statusStartRow);
+  while (lines.length < statusStartRow) {
+    lines.push('');
   }
+  lines.push(...statusLines);
+
+  writeFrame(lines);
 }

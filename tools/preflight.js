@@ -23,6 +23,14 @@ if (isFileDb) {
   }
 }
 
+const requiredEnv = ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_REDIRECT_URI'];
+const missingEnv = requiredEnv.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+  console.error('\nMissing Spotify credentials in .env: ' + missingEnv.join(', '));
+  console.error('Fill .env from your Spotify Developer app, then rerun `npm start`.\n');
+  process.exit(1);
+}
+
 const csvPath = path.resolve(process.cwd(), 'Liked_Songs.csv');
 if (!fs.existsSync(csvPath)) {
   console.warn('\nWarning: Liked_Songs.csv not found; seeding may be skipped or incomplete.');
