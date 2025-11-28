@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+<title id="title">Real-Time DJ Assistant hero graphic</title>
+<desc id="desc">Banner showing a glowing terminal card, BPM-safe recommendations, and Camelot wheel highlights.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+    <stop offset="0" stop-color="#071221" />
+    <stop offset="0.55" stop-color="#0c2d40" />
+    <stop offset="1" stop-color="#0e554c" />
+  </linearGradient>
+  <linearGradient id="card" x1="0" x2="1" y1="0" y2="1">
+    <stop offset="0" stop-color="#0f2335" />
+    <stop offset="1" stop-color="#102c24" />
+  </linearGradient>
+  <linearGradient id="accent" x1="0" x2="1" y1="0" y2="0">
+    <stop offset="0" stop-color="#3fd2c7" />
+    <stop offset="1" stop-color="#f4c95d" />
+  </linearGradient>
+  <radialGradient id="glow" cx="0.72" cy="0.25" r="0.6">
+    <stop offset="0" stop-color="#35e0c6" stop-opacity="0.48" />
+    <stop offset="1" stop-color="#35e0c6" stop-opacity="0" />
+  </radialGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+    <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.35" />
+  </filter>
+</defs>
+<rect width="1200" height="520" fill="url(#bg)" />
+<rect width="1200" height="520" fill="url(#glow)" />
+
+<g opacity="0.35">
+  <rect x="70" y="80" width="1060" height="360" rx="28" ry="28" stroke="#58f6d5" stroke-width="1.5" fill="none" />
+  <rect x="90" y="100" width="1020" height="320" rx="24" ry="24" stroke="#16374a" stroke-width="1.5" fill="none" />
+  <path d="M260 95 v330" stroke="#0f4a46" stroke-width="1.2" stroke-dasharray="5 7" />
+  <path d="M940 95 v330" stroke="#0f4a46" stroke-width="1.2" stroke-dasharray="5 7" />
+  <path d="M90 240 H1110" stroke="#174153" stroke-width="1.2" stroke-dasharray="8 8" />
+</g>
+
+<g transform="translate(110, 120)" fill="#e9f4ff" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <text x="0" y="0" font-size="13" letter-spacing="4" fill="#6be7d6">REAL-TIME</text>
+  <text x="0" y="44" font-size="46" font-weight="700">DJ Assistant for the Terminal</text>
+  <text x="0" y="82" font-size="19" fill="#b8cedf">Harmonic, BPM-safe transitions with phrase awareness and a train-board TUI.</text>
+
+  <g font-size="15" fill="#d6e5f4">
+    <g transform="translate(0, 118)">
+      <rect x="0" y="-20" width="238" height="44" rx="10" fill="#0e3a4b" stroke="#1ad8c5" stroke-width="1.5" />
+      <circle cx="24" cy="2" r="7" fill="url(#accent)" />
+      <text x="42" y="8" font-weight="600">Camelot wheel + BPM guard</text>
+    </g>
+    <g transform="translate(260, 118)">
+      <rect x="0" y="-20" width="214" height="44" rx="10" fill="#0e3a4b" stroke="#1ad8c5" stroke-width="1.5" />
+      <circle cx="24" cy="2" r="7" fill="#f4c95d" />
+      <text x="42" y="8" font-weight="600">Phrase-aware timing</text>
+    </g>
+    <g transform="translate(510, 118)">
+      <rect x="0" y="-20" width="230" height="44" rx="10" fill="#0e3a4b" stroke="#1ad8c5" stroke-width="1.5" />
+      <circle cx="24" cy="2" r="7" fill="#7beef0" />
+      <text x="42" y="8" font-weight="600">Spotify + SongBPM fallback</text>
+    </g>
+  </g>
+</g>
+
+<g transform="translate(720, 150)" filter="url(#shadow)">
+  <rect x="0" y="0" width="420" height="240" rx="18" fill="url(#card)" stroke="#1ad8c5" stroke-width="1.6" />
+  <rect x="16" y="16" width="388" height="38" rx="10" fill="#0f3140" />
+  <text x="32" y="43" font-family="Menlo, Consolas, 'SFMono-Regular', monospace" font-size="16" fill="#9beef3">Now: Strings Attached — Keys N Krates</text>
+
+  <g transform="translate(16, 72)" font-family="Menlo, Consolas, 'SFMono-Regular', monospace" font-size="14" fill="#e9f4ff">
+    <rect x="0" y="0" width="122" height="32" rx="8" fill="#0c2d40" stroke="#f4c95d" stroke-width="1.4" />
+    <text x="14" y="22">BPM 126.0</text>
+    <rect x="136" y="0" width="122" height="32" rx="8" fill="#0c2d40" stroke="#3fd2c7" stroke-width="1.4" />
+    <text x="152" y="22">Camelot 8A</text>
+    <rect x="272" y="0" width="122" height="32" rx="8" fill="#0c2d40" stroke="#7beef0" stroke-width="1.4" />
+    <text x="288" y="22">Phrase 32/64</text>
+  </g>
+
+  <g transform="translate(16, 120)" font-family="Menlo, Consolas, 'SFMono-Regular', monospace" font-size="13" fill="#cde6ff">
+    <text x="0" y="-8" fill="#7beef0">Recommended transitions</text>
+    <rect x="0" y="4" width="388" height="96" rx="12" fill="#0f3140" stroke="#1ad8c5" stroke-width="1.3" />
+    <text x="18" y="32">▼ Smooth        [8A] Losing It — Fisher          -0.1%</text>
+    <text x="18" y="58">▼ Mood Switch   [8B] Cola — CamelPhat            -1.6%</text>
+    <text x="18" y="84">▼ Energy Up     [10A] Rave — Duke Dumont         +1.5%</text>
+  </g>
+
+  <g transform="translate(16, 232)">
+    <line x1="0" y1="0" x2="388" y2="0" stroke="url(#accent)" stroke-width="3" stroke-linecap="round" />
+  </g>
+</g>
+
+<g transform="translate(110, 340)" font-family="Menlo, Consolas, 'SFMono-Regular', monospace" font-size="13" fill="#9beef3">
+  <text x="0" y="0">npm start -- --debug</text>
+  <rect x="-6" y="-18" width="160" height="32" rx="8" fill="none" stroke="#1ad8c5" stroke-width="1.2" />
+  <text x="194" y="0" fill="#f4c95d">tab</text>
+  <text x="224" y="0" fill="#d6e5f4">switch categories</text>
+  <text x="364" y="0" fill="#f4c95d">w/s</text>
+  <text x="394" y="0" fill="#d6e5f4">scroll results</text>
+  <text x="534" y="0" fill="#f4c95d">r</text>
+  <text x="550" y="0" fill="#d6e5f4">refresh library</text>
+</g>
+</svg>

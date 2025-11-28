@@ -5,3 +5,7 @@ dist
 coverage
 tokens.json
 prisma/*.db
+*.log
+.vscode
+.idea
+.venv
