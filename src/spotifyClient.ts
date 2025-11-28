@@ -5,7 +5,7 @@ import { Logger } from './logger';
 export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
   try {
     const response = await spotifyApi.getMyCurrentPlayingTrack();
-    
+
     if (response.statusCode === 204 || !response.body || !response.body.item) {
       return null;
     }
@@ -15,11 +15,11 @@ export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
     }
 
     const track = response.body.item as SpotifyApi.TrackObjectFull; // Cast if needed, depending on types
-    
+
     if (!track.id) return null; // Skip local files or invalid IDs
 
     return {
-      track_id: track.id,
+      track_id: `spotify:track:${track.id}`, // Use full URI to match database format
       track_name: track.name,
       artist: track.artists.map(a => a.name).join(', '),
       camelot_key: '', // Filled later
@@ -27,36 +27,35 @@ export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
       progress_ms: response.body.progress_ms || 0,
       duration_ms: track.duration_ms, // Fetch duration
       timestamp: response.body.timestamp || Date.now(),
-      isPlaying: response.body.is_playing
+      isPlaying: response.body.is_playing,
     };
-
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string };
     if (err.statusCode === 401) {
-       Logger.log("Token expired, attempting refresh...");
-       try {
-         const data = await spotifyApi.refreshAccessToken();
-         const newAccessToken = data.body['access_token'];
-         // refresh_token might not be returned if it hasn't changed/rotated
-         const newRefreshToken = data.body['refresh_token'] || spotifyApi.getRefreshToken(); 
+      Logger.log('Token expired, attempting refresh...');
+      try {
+        const data = await spotifyApi.refreshAccessToken();
+        const newAccessToken = data.body['access_token'];
+        // refresh_token might not be returned if it hasn't changed/rotated
+        const newRefreshToken = data.body['refresh_token'] || spotifyApi.getRefreshToken();
 
-         spotifyApi.setAccessToken(newAccessToken);
-         if (data.body['refresh_token']) {
-             spotifyApi.setRefreshToken(newRefreshToken as string);
-         }
-         
-         if (newRefreshToken) {
-            saveTokens({
-                access_token: newAccessToken,
-                refresh_token: newRefreshToken as string
-            });
-         }
+        spotifyApi.setAccessToken(newAccessToken);
+        if (data.body['refresh_token']) {
+          spotifyApi.setRefreshToken(newRefreshToken as string);
+        }
 
-         return pollCurrentlyPlaying(); // Retry once
-       } catch (refreshError) {
-         Logger.error('Session expired. Please restart to re-authenticate.', refreshError);
-         return null;
-       }
+        if (newRefreshToken) {
+          saveTokens({
+            access_token: newAccessToken,
+            refresh_token: newRefreshToken as string,
+          });
+        }
+
+        return pollCurrentlyPlaying(); // Retry once
+      } catch (refreshError) {
+        Logger.error('Session expired. Please restart to re-authenticate.', refreshError);
+        return null;
+      }
     }
     Logger.error('Polling error:', error);
     return null;

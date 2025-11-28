@@ -1,193 +1,119 @@
 # Test Coverage Gaps Analysis
 
 ## Summary
-Current coverage: **76.36% statements, 61.41% branches** (below 70% threshold for branches)
 
-Recently added tests:
-- `tests/spotifyProvider.test.ts` (sanitization, availability, API error handling)
-- `tests/factory.test.ts` (provider creation, caching, default selection, availability filtering)
-- `tests/databaseProvider.test.ts` (availability, feature fetch, error/null handling)
+**Current coverage: 84.7% statements, 74.87% branches, 83.78% functions, 84.79% lines**
 
-## Remaining High Priority Targets
+**Test Status:** 213 passing, 17 test suites passing
 
-### 1. `tests/animation.test.ts` - Add `runFlipClockAnimation` coverage
-**File:** `src/animation.ts`
+✅ **Branch coverage at 74.87% (above 70% threshold!)** - significant improvement!
 
-Add cases for onFrame call count, timing with fake timers, final frame containing full text, empty/long strings.
+### Coverage by Module
 
----
+- **src/**: 82.47% statements, 71.47% branches, 79.77% functions, 82.5% lines
+- **src/providers/**: 95.4% statements, 90.27% branches, 100% functions, 95.32% lines
 
-### 2. `tests/display.test.ts` - Edge cases
-**File:** `src/display.ts`
+### Individual File Coverage
 
-Cover non-4/4 warning path, scroll bounds, very narrow/wide terminal widths, category filtering, phraseInfo beatsRemaining=0, status bar warning, and paused phrase counter.
+- `camelot.ts`: 100% statements, 100% branches ✅
+- `spotifyClient.ts`: 100% statements, 100% branches ✅
+- `database.ts`: 100% statements, 100% branches ✅ (improved from 52.94%!)
+- `factory.ts`: 100% statements, 92.85% branches ✅
+- `camelotColors.ts`: 100% statements, 88.88% branches
+- `mixingEngine.ts`: 97.91% statements, 86.95% branches
+- `display.ts`: 93.77% statements, 87.5% branches (improved from 85.71%!)
+- `customApiProvider.ts`: 96.1% statements, 93.33% branches
+- `logger.ts`: 95.45% statements, 87.5% branches
+- `animation.ts`: 91.22% statements, 87.5% branches (improved from 70.83%!)
+- `library.ts`: 88.88% statements, 100% branches ✅
+- `auth.ts`: 82.14% statements, 78.57% branches
+- `audioProcessor.ts`: 86.2% statements, 58.82% branches ⚠️
+- `spotifyProvider.ts`: 87.5% statements, 63.63% branches
+- `main.ts`: 63.07% statements, 36.92% branches ⚠️
+- `refreshLibrary.ts`: 16.66% statements, 0% branches ⚠️ (very low coverage)
 
----
+### Recently Completed Tests
 
-### 3. `tests/audioProcessor.test.ts` - Provider chain + cache
-**File:** `src/audioProcessor.ts`
+- ✅ `tests/spotifyProvider.test.ts` (sanitization, availability, API error handling)
+- ✅ `tests/factory.test.ts` (provider creation, caching, default selection, availability filtering)
+- ✅ `tests/databaseProvider.test.ts` (availability, feature fetch, error/null handling, connection failures, error scenarios) - **100% coverage!**
+- ✅ `tests/animation.test.ts` (runFlipClockAnimation timing/call counts) - **97.95% coverage**
+- ✅ `tests/display.test.ts` (paused phrase counter, exit warning, filtering/scroll, non-4/4 warning, wide terminals, progress timing, scroll boundaries, phrase scanline animation/freeze) - **93.77% coverage**
+- ✅ `tests/audioProcessor.test.ts` (provider fallback, all-fail path, per-track cache)
+- ✅ `tests/auth.test.ts` (missing env creds, OAuth callback error/missing code, saveTokens write-failure) - **82.14% coverage**
+- ✅ `tests/mainIntegration.test.ts` (main loop smoke with mocked auth/polling, terminal width guard)
+- ✅ `tests/integrationSmoke.test.ts` (mixing engine + display render)
 
-Cover fallback chain (primary fails, secondary succeeds), all providers fail, cache hits, and concurrent calls for same track.
+## Remaining Targets (to improve branch coverage further)
 
----
+### High Priority (to improve overall branch coverage)
 
-## Medium Priority - Additional Tests for Existing Files
+1. **`audioProcessor.ts`** (58.82% branches) - Add tests for uncovered lines: 28, 34-36, 83-86
+   - Cache invalidation scenarios
+   - Concurrent request handling
+   - Edge cases in provider chain
 
-### 4. `tests/animation.test.ts` - Additional Tests (70.37% coverage)
-**File:** `src/animation.ts`
+2. ~~**`database.ts`** (52.94% branches)~~ ✅ **COMPLETED** - Now at 100% branch coverage!
 
-**Missing Tests:**
-- ✅ `runFlipClockAnimation()` - calls onFrame for each frame
-- ✅ `runFlipClockAnimation()` - calls onFrame ANIMATION_FRAMES + 1 times
-- ✅ `runFlipClockAnimation()` - waits FRAME_DURATION_MS between frames
-- ✅ `runFlipClockAnimation()` - final frame has complete text
-- ✅ `runFlipClockAnimation()` - handles empty strings
-- ✅ `runFlipClockAnimation()` - handles very long strings
+3. **`spotifyProvider.ts`** (63.63% branches) - Add tests for uncovered lines: 51-52, 76-79
+   - Additional error scenarios
+   - Edge cases in API responses
 
-**Test Structure:**
-```typescript
-describe('runFlipClockAnimation', () => {
-  jest.useFakeTimers();
-  
-  test('calls onFrame correct number of times', async () => {
-    const onFrame = jest.fn();
-    const promise = runFlipClockAnimation('Track', 'Artist', onFrame);
-    // Fast-forward timers
-    await promise;
-    expect(onFrame).toHaveBeenCalledTimes(9); // 0-8 frames
-  });
-  
-  test('waits correct duration between frames', async () => {
-    // Test timing
-  });
-  
-  test('final frame has complete text', async () => {
-    // Verify last call has final text
-  });
-});
-```
+### Medium Priority (nice-to-have)
 
----
+4. **`main.ts`** (28.57% branches) - Very low coverage, but integration tests cover main paths
+   - Optional: deeper scenarios with track changes and animations
+   - Error handling paths
 
-### 5. `tests/auth.test.ts` - Additional Tests (67.08% coverage)
-**File:** `src/auth.ts`
+5. **`auth.ts`** (78.57% branches) - Good coverage, minor gaps: lines 43-44, 121-143
+   - OAuth flow edge cases
+   - Additional error scenarios
 
-**Missing Tests:**
-- ✅ `saveTokens()` - writes tokens to file correctly
-- ✅ `saveTokens()` - handles file write errors
-- ✅ `performOAuthFlow()` - handles callback with code
-- ✅ `performOAuthFlow()` - handles callback with error
-- ✅ `performOAuthFlow()` - handles missing code/error
-- ✅ `performOAuthFlow()` - server listens on correct port
-- ✅ `performOAuthFlow()` - creates correct auth URL
-- ✅ `authenticate()` - handles missing credentials in env
-- ✅ `authenticate()` - handles token refresh failure scenarios
-
-**Note:** Some OAuth flow tests may require mocking HTTP server behavior.
+6. **`refreshLibrary.ts`** (0% branches, 16.66% statements) - Very low coverage
+   - This is a utility script, lower priority
 
 ---
 
-### 6. `tests/display.test.ts` - Additional Edge Cases (87.64% coverage)
-**File:** `src/display.ts`
+## Coverage Gaps by File
 
-**Missing Tests:**
-- ✅ `renderTrainBoard()` - handles non-4/4 time signature warning
-- ✅ `renderTrainBoard()` - scrollOffset boundary conditions
-- ✅ `renderTrainBoard()` - very narrow terminal (< 62 chars)
-- ✅ `renderTrainBoard()` - very wide terminal (> 120 chars)
-- ✅ `renderTrainBoard()` - selectedCategory filtering works correctly
-- ✅ `renderTrainBoard()` - scrollOffset with many recommendations
-- ✅ `renderTrainBoard()` - phraseInfo with beatsRemaining = 0 (non-4/4)
-- ✅ `renderStatusBar()` - showExitWarning = true
-- ✅ `renderStatusBar()` - showExitWarning = false
-- ✅ `PhraseCounter.calculate()` - with timeSignature parameter (non-4/4)
+### Files Needing Branch Coverage Improvement
 
-**Lines to cover:** 59, 169-172, 200, 211, 235, 246-249, 270-271, 273, 296-297
+- **`audioProcessor.ts`** (58.82% branches): Lines 28, 34-36, 83-86
+- ~~**`database.ts`** (52.94% branches)~~ ✅ **100% coverage achieved!**
+- **`spotifyProvider.ts`** (63.63% branches): Lines 51-52, 76-79
+- **`main.ts`** (28.57% branches): Many uncovered lines (integration tests cover main paths)
+- **`refreshLibrary.ts`** (0% branches): Lines 16-55, 66-75 (utility script, lower priority)
 
----
+### Files with Minor Gaps
 
-### 7. `tests/audioProcessor.test.ts` - Additional Edge Cases (86.2% coverage)
-**File:** `src/audioProcessor.ts`
-
-**Missing Tests:**
-- ✅ Provider chain fallback behavior (first fails, second succeeds)
-- ✅ All providers fail scenario
-- ✅ Cache key generation with different track IDs
-- ✅ Cache invalidation scenarios
-- ✅ Multiple concurrent requests for same track
-
-**Lines to cover:** 28, 34-36, 83-86
-
----
-
-## Low Priority - Integration & Edge Cases
-
-### 8. Integration Tests
-**Missing:**
-- ✅ Full flow: `pollCurrentlyPlaying()` → `getAudioFeatures()` → `renderTrainBoard()`
-- ✅ Provider chain: database → spotify → custom fallback
-- ✅ Library loading with empty database
-- ✅ Library loading with large dataset
-
-### 9. Error Recovery Tests
-**Missing:**
-- ✅ Network failures during provider chain
-- ✅ Database connection loss during operation
-- ✅ Invalid data in database (null values, wrong types)
-- ✅ Malformed Spotify API responses
-
-### 10. Performance & Edge Cases
-**Missing:**
-- ✅ Very long track names (> 200 chars)
-- ✅ Very long artist names
-- ✅ Unicode/special characters in track/artist names
-- ✅ Extreme BPM values (0, negative, very high > 200)
-- ✅ Missing audio features in various combinations
-
----
-
-## Test Implementation Priority
-
-### Phase 1 (Critical - Get to 70% branch coverage)
-1. `database.test.ts` - Complete coverage
-2. `factory.test.ts` - Complete coverage  
-3. `spotifyProvider.test.ts` - Complete coverage
-
-### Phase 2 (Improve overall coverage)
-4. `animation.test.ts` - Add `runFlipClockAnimation` tests
-5. `display.test.ts` - Add edge case tests
-6. `audioProcessor.test.ts` - Add provider chain tests
-
-### Phase 3 (Polish & Integration)
-7. `auth.test.ts` - Add missing OAuth flow tests
-8. Integration tests
-9. Error recovery tests
-
----
-
-## Estimated Impact
-
-**After Phase 1:**
-- Branch coverage: ~70%+ (meets threshold)
-- Statement coverage: ~85%+
-- New tests: ~40-50 tests
-
-**After Phase 2:**
-- Branch coverage: ~75%+
-- Statement coverage: ~90%+
-- New tests: ~60-70 tests total
-
-**After Phase 3:**
-- Branch coverage: ~80%+
-- Statement coverage: ~95%+
-- New tests: ~80-100 tests total
-
----
+- **`auth.ts`** (78.57% branches): Lines 43-44, 121-143
+- **`display.ts`** (85.71% branches): Lines 65, 167, 176, 326
+- **`animation.ts`** (94.44% branches): Line 72
+- **`camelotColors.ts`** (88.88% branches): Line 57
+- **`mixingEngine.ts`** (86.95% branches): Line 93
 
 ## Notes
 
-- Mock PrismaClient for database tests (use `@prisma/client` mocking)
-- Mock `spotifyApi` from `auth.ts` for provider tests
-- Use `jest.useFakeTimers()` for animation timing tests
-- Consider using test databases for integration tests
-- Some OAuth flow tests may require HTTP server mocking
+- Use `jest.useFakeTimers()` for animation timing and UI loop tests.
+- Mock `spotifyApi` from `auth.ts` and Prisma from `@prisma/client` when isolating providers.
+- Run `npm test -- --coverage` to update coverage stats when needed.
+
+## Recent Improvements
+
+✅ **Branch coverage significantly improved!** (74.87% > 70%)
+
+- Improved from 70.19% to 74.87% branch coverage (+4.68%)
+- Improved from 84.61% to 84.7% statement coverage
+- Added 12 new tests (213 total, up from 201)
+- `database.ts`: **100% branch coverage** (improved from 52.94%!) 🎉
+- `display.ts`: 87.5% branch coverage (improved from 85.71%)
+- `animation.ts`: 87.5% branch coverage (improved from 70.83%)
+- Added comprehensive database error handling tests (connection failures, timeouts, locked DB, etc.)
+- Added phrase scanline animation/freeze tests
+
+## Next Steps to Improve Branch Coverage Further
+
+1. Focus on `audioProcessor.ts` (58.82% branches) - add tests for cache edge cases and concurrent requests
+2. ~~Improve `database.ts`~~ ✅ **COMPLETED** - Now at 100% branch coverage!
+3. Enhance `spotifyProvider.ts` (63.63% branches) - add tests for additional error scenarios
+4. Continue improving `main.ts` (36.92% branches) - deeper integration test scenarios

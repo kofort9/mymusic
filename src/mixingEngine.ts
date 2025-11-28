@@ -1,10 +1,10 @@
-import { ShiftType, CamelotCode, LibraryTrack, CurrentTrack, MatchedTrack } from './types';
+import { ShiftType, LibraryTrack, CurrentTrack, MatchedTrack } from './types';
 
 // Camelot Wheel Logic for Compatibility
 // Numbers 1-12
 // Letters A (Minor), B (Major)
 
-function parseCamelot(code: string): { num: number, letter: string } {
+function parseCamelot(code: string): { num: number; letter: string } {
   const match = code.match(/^(\d+)([AB])$/);
   if (!match) throw new Error(`Invalid Camelot code: ${code}`);
   const num = parseInt(match[1], 10);
@@ -28,7 +28,7 @@ export function getCompatibleKeys(camelotCode: string): Record<ShiftType, string
     [ShiftType.MOOD_SWITCH]: [],
     [ShiftType.ENERGY_UP]: [],
     [ShiftType.ENERGY_DOWN]: [],
-    [ShiftType.RHYTHMIC_BREAKER]: []
+    [ShiftType.RHYTHMIC_BREAKER]: [],
   };
 
   // Smooth: ±1 same letter, same key same letter
@@ -54,46 +54,52 @@ export function getCompatibleKeys(camelotCode: string): Record<ShiftType, string
 }
 
 export function filterMatches(
-  currentTrack: CurrentTrack, 
-  library: LibraryTrack[], 
-  compatibleKeys: Record<ShiftType, string[]>
+  currentTrack: CurrentTrack,
+  library: LibraryTrack[],
+  compatibleKeys: Record<ShiftType, string[]>,
+  skipHarmonicFilter = false // For "ALL" view - show all songs
 ): MatchedTrack[] {
   const matchedTracks: MatchedTrack[] = [];
   const currentBpm = currentTrack.audio_features.tempo;
 
-  // BPM Range: ±10%
-  const minBpm = currentBpm * 0.9;
-  const maxBpm = currentBpm * 1.1;
+  // BPM Range: ±10% for specific tabs, wide range for ALL
+  const bpmTolerance = skipHarmonicFilter ? 2.0 : 0.1; // 200% for ALL (essentially no filter), 10% for specific tabs
+  const minBpm = currentBpm * (1 - bpmTolerance);
+  const maxBpm = currentBpm * (1 + bpmTolerance);
 
   for (const track of library) {
     // Skip same track
     if (track.track_id === currentTrack.track_id) continue;
 
     // Check BPM (Only filter if current BPM is valid > 0)
-    if (currentBpm > 0) {
-        if (track.bpm < minBpm || track.bpm > maxBpm) continue;
+    if (currentBpm > 0 && !skipHarmonicFilter) {
+      if (track.bpm < minBpm || track.bpm > maxBpm) continue;
     }
 
     // Check Key
     let shiftType: ShiftType | null = null;
-    
+
+    // Always try to categorize by harmonic relationship
     for (const [type, keys] of Object.entries(compatibleKeys)) {
       if (keys.includes(track.camelot_key)) {
         shiftType = type as ShiftType;
-        break; // Prioritize based on iteration order or logic? 
-               // Here it takes the first match found in the compatibleKeys object entries order.
-               // Ideally we might want to handle multiple types, but for MVP one is fine.
+        break;
       }
+    }
+
+    // For ALL view, include tracks even if they don't match harmonically
+    if (skipHarmonicFilter && !shiftType) {
+      // Not harmonically compatible, but include it anyway for ALL view
+      shiftType = ShiftType.RHYTHMIC_BREAKER; // Put non-harmonic matches here
     }
 
     if (shiftType) {
       matchedTracks.push({
         ...track,
-        shiftType
+        shiftType,
       });
     }
   }
 
   return matchedTracks;
 }
-

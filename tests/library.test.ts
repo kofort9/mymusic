@@ -1,93 +1,53 @@
 import { loadLibrary } from '../src/library';
-import * as fs from 'fs';
+import { PrismaClient } from '@prisma/client';
 
-// Mock fs module
-jest.mock('fs');
+// Mock Prisma Client
+jest.mock('@prisma/client', () => {
+  const mPrismaClient = {
+    track: {
+      findMany: jest.fn(),
+    },
+    $disconnect: jest.fn(),
+  };
+  return { PrismaClient: jest.fn(() => mPrismaClient) };
+});
 
 describe('Library Loader', () => {
+  let prisma: any;
+
+  beforeEach(() => {
+    prisma = new PrismaClient();
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  test('loads valid library successfully', () => {
-    const mockData = JSON.stringify([
+  test('loads valid library successfully', async () => {
+    const mockTracks = [
       {
-        track_id: 'test1',
-        track_name: 'Test Track',
+        spotifyId: 'test1',
+        title: 'Test Track',
         artist: 'Test Artist',
-        camelot_key: '8A',
-        bpm: 128.0
-      }
-    ]);
+        camelotKey: '8A',
+        bpm: 128.0,
+        energy: 0.8,
+      },
+    ];
 
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.readFileSync as jest.Mock).mockReturnValue(mockData);
+    (prisma.track.findMany as jest.Mock).mockResolvedValue(mockTracks);
 
-    const library = loadLibrary('test.json');
+    const library = await loadLibrary();
 
     expect(library).toHaveLength(1);
     expect(library[0].track_name).toBe('Test Track');
     expect(library[0].camelot_key).toBe('8A');
-  });
-
-  test('throws error if file not found', () => {
-    (fs.existsSync as jest.Mock).mockReturnValue(false);
-
-    expect(() => loadLibrary('missing.json')).toThrow('Library file not found');
-  });
-
-  test('throws error for invalid Camelot key format', () => {
-    const mockData = JSON.stringify([
-      {
-        track_id: 'test1',
-        track_name: 'Test Track',
-        artist: 'Test Artist',
-        camelot_key: 'INVALID',
-        bpm: 128.0
-      }
-    ]);
-
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.readFileSync as jest.Mock).mockReturnValue(mockData);
-
-    expect(() => loadLibrary('test.json')).toThrow('Library validation failed');
-  });
-
-  test('throws error for negative BPM', () => {
-    const mockData = JSON.stringify([
-      {
-        track_id: 'test1',
-        track_name: 'Test Track',
-        artist: 'Test Artist',
-        camelot_key: '8A',
-        bpm: -10
-      }
-    ]);
-
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.readFileSync as jest.Mock).mockReturnValue(mockData);
-
-    expect(() => loadLibrary('test.json')).toThrow('Library validation failed');
-  });
-
-  test('accepts optional energy field', () => {
-    const mockData = JSON.stringify([
-      {
-        track_id: 'test1',
-        track_name: 'Test Track',
-        artist: 'Test Artist',
-        camelot_key: '8A',
-        bpm: 128.0,
-        energy: 0.8
-      }
-    ]);
-
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.readFileSync as jest.Mock).mockReturnValue(mockData);
-
-    const library = loadLibrary('test.json');
-
     expect(library[0].energy).toBe(0.8);
   });
-});
 
+  test('throws error if DB fetch fails', async () => {
+    (prisma.track.findMany as jest.Mock).mockRejectedValue(new Error('DB Error'));
+
+    await expect(loadLibrary()).rejects.toThrow('Failed to load library from DB');
+  });
+});

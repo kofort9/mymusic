@@ -33,4 +33,3 @@ describe('Camelot Conversion', () => {
     expect(() => convertToCamelot(0, -1)).toThrow();
   });
 });
-

@@ -9,30 +9,36 @@ import * as path from 'path';
 // Mock dependencies BEFORE importing auth
 jest.mock('fs');
 jest.mock('dotenv', () => ({
-  config: jest.fn()
+  config: jest.fn(),
 }));
 
 // Mock Logger to avoid console noise
 jest.mock('../src/logger', () => ({
   Logger: {
     log: jest.fn(),
-    error: jest.fn()
-  }
+    error: jest.fn(),
+  },
 }));
 
 // Mock HTTP server to avoid port conflicts
+let capturedHandler: ((req: any, res: any) => void) | null = null;
+
 const mockServer: { listen: jest.Mock; close: jest.Mock } = {
   listen: jest.fn((port: number, callback: () => void) => {
     callback();
     return mockServer;
   }),
-  close: jest.fn()
+  close: jest.fn(),
 };
 
 jest.mock('http', () => ({
-  createServer: jest.fn(() => mockServer),
+  createServer: jest.fn((handler: any) => {
+    capturedHandler = handler;
+    return mockServer;
+  }),
   IncomingMessage: jest.fn(),
-  ServerResponse: jest.fn()
+  ServerResponse: jest.fn(),
+  __getHandler: () => capturedHandler,
 }));
 
 // Mock spotify-web-api-node
@@ -43,7 +49,7 @@ const mockSpotifyApi = {
   refreshAccessToken: jest.fn(),
   authorizationCodeGrant: jest.fn(),
   createAuthorizeURL: jest.fn(() => 'http://example.com/auth'),
-  getRefreshToken: jest.fn()
+  getRefreshToken: jest.fn(),
 };
 
 jest.mock('spotify-web-api-node', () => {
@@ -69,15 +75,26 @@ describe('Auth', () => {
     test('writes tokens to file in JSON format', () => {
       const tokens = {
         access_token: 'test_access_token',
-        refresh_token: 'test_refresh_token'
+        refresh_token: 'test_refresh_token',
       };
 
       saveTokens(tokens);
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        TOKEN_PATH,
-        JSON.stringify(tokens, null, 2)
-      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(TOKEN_PATH, JSON.stringify(tokens, null, 2));
+    });
+
+    test('throws when file write fails', () => {
+      const tokens = {
+        access_token: 'test_access_token',
+        refresh_token: 'test_refresh_token',
+      };
+
+      const writeError = new Error('Failed to write file');
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {
+        throw writeError;
+      });
+
+      expect(() => saveTokens(tokens)).toThrow('Failed to write file');
     });
   });
 
@@ -85,7 +102,7 @@ describe('Auth', () => {
     test('loads saved tokens successfully when valid', async () => {
       const tokens = {
         access_token: 'valid_access_token',
-        refresh_token: 'valid_refresh_token'
+        refresh_token: 'valid_refresh_token',
       };
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
@@ -100,14 +117,66 @@ describe('Auth', () => {
       expect(Logger.log).toHaveBeenCalledWith('Loaded saved tokens.');
     });
 
+    test('throws when required env credentials are missing', async () => {
+      const originalId = process.env.SPOTIFY_CLIENT_ID;
+      const originalSecret = process.env.SPOTIFY_CLIENT_SECRET;
+      const originalRedirect = process.env.SPOTIFY_REDIRECT_URI;
+
+      jest.resetModules();
+      process.env.SPOTIFY_CLIENT_ID = '';
+      process.env.SPOTIFY_CLIENT_SECRET = '';
+      process.env.SPOTIFY_REDIRECT_URI = '';
+
+      const freshAuth = await import('../src/auth');
+      await expect(freshAuth.authenticate()).rejects.toThrow('Missing Spotify credentials');
+
+      process.env.SPOTIFY_CLIENT_ID = originalId;
+      process.env.SPOTIFY_CLIENT_SECRET = originalSecret;
+      process.env.SPOTIFY_REDIRECT_URI = originalRedirect;
+    });
+
+    test('handles OAuth callback error', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback?error=access_denied' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+
+      await expect(authPromise).rejects.toThrow('Auth error: access_denied');
+      expect(mockRes.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'text/html' });
+      expect(mockServer.close).toHaveBeenCalled();
+    });
+
+    test('handles OAuth callback missing code', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      const { __getHandler } = require('http');
+
+      const authPromise = authenticate();
+      const handler = __getHandler();
+
+      const mockReq = { url: '/callback' };
+      const mockRes = { writeHead: jest.fn(), end: jest.fn() };
+
+      await handler(mockReq, mockRes);
+
+      await expect(authPromise).rejects.toThrow('Missing authorization code');
+      expect(mockRes.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'text/html' });
+      expect(mockServer.close).toHaveBeenCalled();
+    });
+
     test('refreshes token when expired', async () => {
       const oldTokens = {
         access_token: 'expired_token',
-        refresh_token: 'refresh_token'
+        refresh_token: 'refresh_token',
       };
       const newTokens = {
         access_token: 'new_access_token',
-        refresh_token: 'refresh_token'
+        refresh_token: 'refresh_token',
       };
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
@@ -116,17 +185,14 @@ describe('Auth', () => {
       mockSpotifyApi.refreshAccessToken.mockResolvedValue({
         body: {
           access_token: 'new_access_token',
-          refresh_token: 'refresh_token'
-        }
+          refresh_token: 'refresh_token',
+        },
       });
 
       await authenticate();
 
       expect(mockSpotifyApi.refreshAccessToken).toHaveBeenCalled();
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        TOKEN_PATH,
-        JSON.stringify(newTokens, null, 2)
-      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(TOKEN_PATH, JSON.stringify(newTokens, null, 2));
       expect(mockSpotifyApi.setAccessToken).toHaveBeenCalledWith('new_access_token');
       expect(Logger.log).toHaveBeenCalledWith('Token refreshed successfully.');
     });
@@ -134,11 +200,11 @@ describe('Auth', () => {
     test('handles refresh token rotation', async () => {
       const oldTokens = {
         access_token: 'expired_token',
-        refresh_token: 'old_refresh_token'
+        refresh_token: 'old_refresh_token',
       };
       const newTokens = {
         access_token: 'new_access_token',
-        refresh_token: 'new_refresh_token'
+        refresh_token: 'new_refresh_token',
       };
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
@@ -147,23 +213,20 @@ describe('Auth', () => {
       mockSpotifyApi.refreshAccessToken.mockResolvedValue({
         body: {
           access_token: 'new_access_token',
-          refresh_token: 'new_refresh_token'
-        }
+          refresh_token: 'new_refresh_token',
+        },
       });
 
       await authenticate();
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        TOKEN_PATH,
-        JSON.stringify(newTokens, null, 2)
-      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(TOKEN_PATH, JSON.stringify(newTokens, null, 2));
       expect(mockSpotifyApi.setRefreshToken).toHaveBeenCalledWith('new_refresh_token');
     });
 
     test('handles refresh failure and logs re-authentication message', async () => {
       const oldTokens = {
         access_token: 'expired_token',
-        refresh_token: 'invalid_refresh_token'
+        refresh_token: 'invalid_refresh_token',
       };
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
@@ -174,12 +237,14 @@ describe('Auth', () => {
       // The function will try to start OAuth flow after refresh failure
       // We just verify the refresh was attempted and the log message was shown
       const authPromise = authenticate();
-      
+
       // Give it time to process the refresh failure
       await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(mockSpotifyApi.refreshAccessToken).toHaveBeenCalled();
-      expect(Logger.log).toHaveBeenCalledWith('Could not refresh token, requiring re-authentication.');
+      expect(Logger.log).toHaveBeenCalledWith(
+        'Could not refresh token, requiring re-authentication.'
+      );
     });
 
     test('handles invalid token file gracefully', async () => {
@@ -190,7 +255,7 @@ describe('Auth', () => {
 
       // The function will try to start OAuth flow after file read error
       const authPromise = authenticate();
-      
+
       // Give it time to process the error
       await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -203,7 +268,7 @@ describe('Auth', () => {
 
       // The function will start OAuth flow
       const authPromise = authenticate();
-      
+
       // Give it time to start the server
       await new Promise(resolve => setTimeout(resolve, 50));
 

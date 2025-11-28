@@ -9,9 +9,9 @@ jest.mock('../src/auth', () => ({
     refreshAccessToken: jest.fn(),
     setAccessToken: jest.fn(),
     setRefreshToken: jest.fn(),
-    getRefreshToken: jest.fn()
+    getRefreshToken: jest.fn(),
   },
-  saveTokens: jest.fn()
+  saveTokens: jest.fn(),
 }));
 
 // Mock Logger
@@ -19,8 +19,8 @@ jest.mock('../src/logger', () => ({
   Logger: {
     log: jest.fn(),
     error: jest.fn(),
-    warn: jest.fn()
-  }
+    warn: jest.fn(),
+  },
 }));
 
 describe('Spotify Client', () => {
@@ -37,13 +37,13 @@ describe('Spotify Client', () => {
             id: 'track123',
             name: 'Test Track',
             artists: [{ name: 'Artist 1' }, { name: 'Artist 2' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
           progress_ms: 50000,
           timestamp: 1234567890,
           is_playing: true,
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -62,7 +62,7 @@ describe('Spotify Client', () => {
     test('returns null when no track is playing (204 status)', async () => {
       const mockResponse = {
         statusCode: 204,
-        body: null
+        body: null,
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -75,7 +75,7 @@ describe('Spotify Client', () => {
     test('returns null when response body is null', async () => {
       const mockResponse = {
         statusCode: 200,
-        body: null
+        body: null,
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -89,8 +89,8 @@ describe('Spotify Client', () => {
       const mockResponse = {
         statusCode: 200,
         body: {
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -106,10 +106,10 @@ describe('Spotify Client', () => {
         body: {
           item: {
             id: 'episode123',
-            name: 'Test Podcast'
+            name: 'Test Podcast',
           },
-          currently_playing_type: 'episode'
-        }
+          currently_playing_type: 'episode',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -126,10 +126,10 @@ describe('Spotify Client', () => {
           item: {
             name: 'Local Track',
             artists: [{ name: 'Local Artist' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -147,12 +147,12 @@ describe('Spotify Client', () => {
             id: 'track123',
             name: 'Test Track',
             artists: [{ name: 'Artist 1' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
           timestamp: 1234567890,
           is_playing: true,
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -171,12 +171,12 @@ describe('Spotify Client', () => {
             id: 'track123',
             name: 'Test Track',
             artists: [{ name: 'Artist 1' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
           progress_ms: 50000,
           is_playing: true,
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockResolvedValue(mockResponse);
@@ -193,7 +193,7 @@ describe('Spotify Client', () => {
     test('refreshes token on 401 error and retries', async () => {
       const errorResponse = {
         statusCode: 401,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       };
 
       const mockResponse = {
@@ -203,24 +203,24 @@ describe('Spotify Client', () => {
             id: 'track123',
             name: 'Test Track',
             artists: [{ name: 'Artist 1' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
           progress_ms: 50000,
           timestamp: 1234567890,
           is_playing: true,
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock)
         .mockRejectedValueOnce(errorResponse)
         .mockResolvedValueOnce(mockResponse);
-      
+
       (spotifyApi.refreshAccessToken as jest.Mock).mockResolvedValue({
         body: {
           access_token: 'new_access_token',
-          refresh_token: 'new_refresh_token'
-        }
+          refresh_token: 'new_refresh_token',
+        },
       });
       (spotifyApi.getRefreshToken as jest.Mock).mockReturnValue('new_refresh_token');
 
@@ -230,7 +230,7 @@ describe('Spotify Client', () => {
       expect(spotifyApi.setAccessToken).toHaveBeenCalledWith('new_access_token');
       expect(saveTokens).toHaveBeenCalledWith({
         access_token: 'new_access_token',
-        refresh_token: 'new_refresh_token'
+        refresh_token: 'new_refresh_token',
       });
       expect(result).not.toBeNull();
       expect(result?.track_id).toBe('spotify:track:track123');
@@ -239,7 +239,7 @@ describe('Spotify Client', () => {
     test('handles refresh failure gracefully', async () => {
       const errorResponse = {
         statusCode: 401,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockRejectedValue(errorResponse);
@@ -257,7 +257,7 @@ describe('Spotify Client', () => {
     test('handles refresh without new refresh token', async () => {
       const errorResponse = {
         statusCode: 401,
-        message: 'Unauthorized'
+        message: 'Unauthorized',
       };
 
       const mockResponse = {
@@ -267,24 +267,24 @@ describe('Spotify Client', () => {
             id: 'track123',
             name: 'Test Track',
             artists: [{ name: 'Artist 1' }],
-            duration_ms: 180000
+            duration_ms: 180000,
           },
           progress_ms: 50000,
           timestamp: 1234567890,
           is_playing: true,
-          currently_playing_type: 'track'
-        }
+          currently_playing_type: 'track',
+        },
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock)
         .mockRejectedValueOnce(errorResponse)
         .mockResolvedValueOnce(mockResponse);
-      
+
       (spotifyApi.refreshAccessToken as jest.Mock).mockResolvedValue({
         body: {
-          access_token: 'new_access_token'
+          access_token: 'new_access_token',
           // No refresh_token in response
-        }
+        },
       });
       (spotifyApi.getRefreshToken as jest.Mock).mockReturnValue('old_refresh_token');
 
@@ -293,7 +293,7 @@ describe('Spotify Client', () => {
       expect(spotifyApi.setRefreshToken).not.toHaveBeenCalled();
       expect(saveTokens).toHaveBeenCalledWith({
         access_token: 'new_access_token',
-        refresh_token: 'old_refresh_token'
+        refresh_token: 'old_refresh_token',
       });
       expect(result).not.toBeNull();
     });
@@ -301,7 +301,7 @@ describe('Spotify Client', () => {
     test('handles non-401 errors gracefully', async () => {
       const errorResponse = {
         statusCode: 500,
-        message: 'Internal Server Error'
+        message: 'Internal Server Error',
       };
 
       (spotifyApi.getMyCurrentPlayingTrack as jest.Mock).mockRejectedValue(errorResponse);

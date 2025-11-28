@@ -1,14 +1,10 @@
 {
   "parser": "@typescript-eslint/parser",
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "plugins": ["@typescript-eslint"],
   "parserOptions": {
     "ecmaVersion": 2020,
-    "sourceType": "module",
-    "project": "./tsconfig.json"
+    "sourceType": "module"
   },
   "env": {
     "node": true,
@@ -21,6 +17,5 @@
     "no-console": "off",
     "prefer-const": "warn"
   },
-  "ignorePatterns": ["dist/", "node_modules/", "**/*.test.ts", "jest.config.js"]
+  "ignorePatterns": ["dist/", "node_modules/", "**/*.test.ts", "jest.config.js", "prisma/"]
 }
-

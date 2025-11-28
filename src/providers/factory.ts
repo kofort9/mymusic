@@ -1,11 +1,12 @@
 import { AudioFeatureProvider } from './types';
 import { SpotifyProvider } from './spotifyProvider';
 import { CustomApiProvider } from './customApiProvider';
+import { DatabaseProvider } from './database';
 import { Logger } from '../logger';
 
 /**
  * Provider Factory
- * 
+ *
  * Creates and configures audio feature providers based on environment configuration.
  * Supports fallback chains for redundancy.
  */
@@ -17,7 +18,7 @@ export class ProviderFactory {
    */
   static getProvider(name: string): AudioFeatureProvider | null {
     const normalized = name.toLowerCase();
-    
+
     // Return cached provider if available
     if (this.providers.has(normalized)) {
       return this.providers.get(normalized)!;
@@ -27,6 +28,10 @@ export class ProviderFactory {
     let provider: AudioFeatureProvider | null = null;
 
     switch (normalized) {
+      case 'database':
+      case 'db':
+        provider = new DatabaseProvider();
+        break;
       case 'spotify':
         provider = new SpotifyProvider();
         break;
@@ -74,7 +79,7 @@ export class ProviderFactory {
   static getDefaultProvider(): AudioFeatureProvider {
     const providerName = process.env.AUDIO_FEATURE_PROVIDER || 'spotify';
     const provider = this.getProvider(providerName);
-    
+
     if (!provider) {
       Logger.log(`Failed to load ${providerName}, falling back to Spotify`);
       return this.getProvider('spotify')!;
@@ -83,4 +88,3 @@ export class ProviderFactory {
     return provider;
   }
 }
-

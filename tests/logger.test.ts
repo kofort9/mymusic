@@ -11,7 +11,7 @@ describe('Logger', () => {
   test('logs info messages', () => {
     Logger.log('Test message');
     const logs = Logger.getLogs();
-    
+
     expect(logs.length).toBe(1);
     expect(logs[0]).toContain('INFO: Test message');
   });
@@ -19,7 +19,7 @@ describe('Logger', () => {
   test('logs error messages', () => {
     Logger.error('Test error');
     const logs = Logger.getLogs();
-    
+
     expect(logs.length).toBe(1);
     expect(logs[0]).toContain('ERROR: Test error');
   });
@@ -28,7 +28,7 @@ describe('Logger', () => {
     const error = new Error('Detailed error');
     Logger.error('Test error', error);
     const logs = Logger.getLogs();
-    
+
     expect(logs[0]).toContain('Detailed error');
   });
 
@@ -37,7 +37,7 @@ describe('Logger', () => {
     for (let i = 0; i < 25; i++) {
       Logger.log(`Message ${i}`);
     }
-    
+
     const logs = Logger.getLogs();
     expect(logs.length).toBeLessThanOrEqual(20);
     // Should keep the most recent logs
@@ -47,9 +47,8 @@ describe('Logger', () => {
   test('includes timestamp in logs', () => {
     Logger.log('Test');
     const logs = Logger.getLogs();
-    
+
     // Should match format [HH:MM:SS]
     expect(logs[0]).toMatch(/\[\d{1,2}:\d{2}:\d{2}\]/);
   });
 });
-

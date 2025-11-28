@@ -450,11 +450,7 @@ describe('CustomApiProvider', () => {
           }),
         });
 
-      const result = await provider.getAudioFeatures(
-        'spotify:track:123',
-        undefined,
-        'Daft Punk'
-      );
+      const result = await provider.getAudioFeatures('spotify:track:123', undefined, 'Daft Punk');
 
       expect(result).toEqual({
         tempo: 128,
@@ -503,4 +499,3 @@ describe('CustomApiProvider', () => {
     });
   });
 });
-

@@ -8,7 +8,7 @@ class LRUCache<K, V> {
   private cache: Map<K, V>;
   private maxSize: number;
 
-  constructor(maxSize: number = 100) {
+  constructor(maxSize = 100) {
     this.cache = new Map();
     this.maxSize = maxSize;
   }
@@ -76,9 +76,9 @@ export async function getAudioFeatures(
     const providerNames = (process.env.AUDIO_FEATURE_PROVIDER || 'spotify')
       .split(',')
       .map(p => p.trim());
-    
+
     providers = await ProviderFactory.createProviderChain(providerNames);
-    
+
     if (providers.length === 0) {
       Logger.error('No audio feature providers available!');
       // Fallback to Spotify
@@ -92,7 +92,7 @@ export async function getAudioFeatures(
     try {
       Logger.log(`Fetching features for ${trackId}...`);
       const features = await provider.getAudioFeatures(trackId, trackName, artist);
-      
+
       if (features) {
         Logger.log(`Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}`);
         featureCache.set(trackId, features);
@@ -104,7 +104,7 @@ export async function getAudioFeatures(
       if (err.statusCode) errorDetails += ` Status: ${err.statusCode}`;
       if (err.body) errorDetails += ` Body: ${JSON.stringify(err.body)}`;
       if (err.headers) errorDetails += ` Headers: ${JSON.stringify(err.headers)}`;
-      
+
       if (!errorDetails && typeof error === 'object') {
         try {
           errorDetails = JSON.stringify(error, null, 2);
@@ -112,7 +112,7 @@ export async function getAudioFeatures(
           errorDetails = String(error);
         }
       }
-      
+
       Logger.error(`Audio features fetch error for ${trackId}:${errorDetails}`, error);
       continue; // Try next provider
     }

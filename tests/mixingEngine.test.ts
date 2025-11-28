@@ -3,7 +3,7 @@ import { CurrentTrack, LibraryTrack, ShiftType } from '../src/types';
 
 describe('Mixing Engine', () => {
   const currentTrack: CurrentTrack = {
-    track_id: 'curr1',
+    track_id: 'spotify:track:curr1',
     track_name: 'Current Song',
     artist: 'Artist A',
     camelot_key: '8A', // A Minor
@@ -11,17 +11,59 @@ describe('Mixing Engine', () => {
     progress_ms: 0,
     duration_ms: 180000, // Added duration_ms
     timestamp: Date.now(),
-    isPlaying: true // Added isPlaying
+    isPlaying: true, // Added isPlaying
   };
 
   const library: LibraryTrack[] = [
-    { track_id: 't1', track_name: 'Smooth Match', artist: 'B', camelot_key: '8A', bpm: 128 },
-    { track_id: 't2', track_name: 'Smooth Match 2', artist: 'C', camelot_key: '9A', bpm: 128 },
-    { track_id: 't3', track_name: 'Energy Up', artist: 'D', camelot_key: '10A', bpm: 128 },
-    { track_id: 't4', track_name: 'Energy Down', artist: 'E', camelot_key: '6A', bpm: 128 },
-    { track_id: 't5', track_name: 'Mood Switch', artist: 'F', camelot_key: '8B', bpm: 128 },
-    { track_id: 't6', track_name: 'BPM Mismatch', artist: 'G', camelot_key: '8A', bpm: 150 },
-    { track_id: 't7', track_name: 'No Match', artist: 'H', camelot_key: '1A', bpm: 128 },
+    {
+      track_id: 'spotify:track:t1',
+      track_name: 'Smooth Match',
+      artist: 'B',
+      camelot_key: '8A',
+      bpm: 128,
+    },
+    {
+      track_id: 'spotify:track:t2',
+      track_name: 'Smooth Match 2',
+      artist: 'C',
+      camelot_key: '9A',
+      bpm: 128,
+    },
+    {
+      track_id: 'spotify:track:t3',
+      track_name: 'Energy Up',
+      artist: 'D',
+      camelot_key: '10A',
+      bpm: 128,
+    },
+    {
+      track_id: 'spotify:track:t4',
+      track_name: 'Energy Down',
+      artist: 'E',
+      camelot_key: '6A',
+      bpm: 128,
+    },
+    {
+      track_id: 'spotify:track:t5',
+      track_name: 'Mood Switch',
+      artist: 'F',
+      camelot_key: '8B',
+      bpm: 128,
+    },
+    {
+      track_id: 'spotify:track:t6',
+      track_name: 'BPM Mismatch',
+      artist: 'G',
+      camelot_key: '8A',
+      bpm: 150,
+    },
+    {
+      track_id: 'spotify:track:t7',
+      track_name: 'No Match',
+      artist: 'H',
+      camelot_key: '1A',
+      bpm: 128,
+    },
   ];
 
   describe('getCompatibleKeys', () => {
@@ -107,23 +149,23 @@ describe('Mixing Engine', () => {
 
       // Expected matches: t1 (8A), t2 (9A), t3 (10A), t4 (6A), t5 (8B)
       const matchIds = matches.map(m => m.track_id);
-      expect(matchIds).toContain('t1');
-      expect(matchIds).toContain('t2');
-      expect(matchIds).toContain('t3');
-      expect(matchIds).toContain('t4');
-      expect(matchIds).toContain('t5');
-      expect(matchIds).not.toContain('t6');
-      expect(matchIds).not.toContain('t7');
+      expect(matchIds).toContain('spotify:track:t1');
+      expect(matchIds).toContain('spotify:track:t2');
+      expect(matchIds).toContain('spotify:track:t3');
+      expect(matchIds).toContain('spotify:track:t4');
+      expect(matchIds).toContain('spotify:track:t5');
+      expect(matchIds).not.toContain('spotify:track:t6');
+      expect(matchIds).not.toContain('spotify:track:t7');
     });
 
     test('annotates shift type correctly', () => {
       const keys = getCompatibleKeys(currentTrack.camelot_key);
       const matches = filterMatches(currentTrack, library, keys);
-      
-      const energyUp = matches.find(m => m.track_id === 't3');
+
+      const energyUp = matches.find(m => m.track_id === 'spotify:track:t3');
       expect(energyUp?.shiftType).toBe(ShiftType.ENERGY_UP);
 
-      const moodSwitch = matches.find(m => m.track_id === 't5');
+      const moodSwitch = matches.find(m => m.track_id === 'spotify:track:t5');
       expect(moodSwitch?.shiftType).toBe(ShiftType.MOOD_SWITCH);
     });
 
@@ -131,24 +173,48 @@ describe('Mixing Engine', () => {
       const keys = getCompatibleKeys(currentTrack.camelot_key);
       const libraryWithCurrent: LibraryTrack[] = [
         ...library,
-        { track_id: 'curr1', track_name: 'Current Song', artist: 'Artist A', camelot_key: '8A', bpm: 128 }
+        {
+          track_id: 'spotify:track:curr1',
+          track_name: 'Current Song',
+          artist: 'Artist A',
+          camelot_key: '8A',
+          bpm: 128,
+        },
       ];
 
       const matches = filterMatches(currentTrack, libraryWithCurrent, keys);
       const matchIds = matches.map(m => m.track_id);
-      expect(matchIds).not.toContain('curr1');
+      expect(matchIds).not.toContain('spotify:track:curr1');
     });
 
     test('handles zero BPM (should not filter by BPM)', () => {
       const zeroBpmTrack: CurrentTrack = {
         ...currentTrack,
-        audio_features: { tempo: 0, key: 9, mode: 0 }
+        audio_features: { tempo: 0, key: 9, mode: 0 },
       };
 
       const libraryWithVariousBpm: LibraryTrack[] = [
-        { track_id: 't1', track_name: 'Track 1', artist: 'A', camelot_key: '8A', bpm: 60 },
-        { track_id: 't2', track_name: 'Track 2', artist: 'B', camelot_key: '8A', bpm: 200 },
-        { track_id: 't3', track_name: 'Track 3', artist: 'C', camelot_key: '1A', bpm: 128 }
+        {
+          track_id: 'spotify:track:t1',
+          track_name: 'Track 1',
+          artist: 'A',
+          camelot_key: '8A',
+          bpm: 60,
+        },
+        {
+          track_id: 'spotify:track:t2',
+          track_name: 'Track 2',
+          artist: 'B',
+          camelot_key: '8A',
+          bpm: 200,
+        },
+        {
+          track_id: 'spotify:track:t3',
+          track_name: 'Track 3',
+          artist: 'C',
+          camelot_key: '1A',
+          bpm: 128,
+        },
       ];
 
       const keys = getCompatibleKeys(zeroBpmTrack.camelot_key);
@@ -156,20 +222,32 @@ describe('Mixing Engine', () => {
 
       // Should match by key only, regardless of BPM
       const matchIds = matches.map(m => m.track_id);
-      expect(matchIds).toContain('t1');
-      expect(matchIds).toContain('t2');
-      expect(matchIds).not.toContain('t3'); // Wrong key
+      expect(matchIds).toContain('spotify:track:t1');
+      expect(matchIds).toContain('spotify:track:t2');
+      expect(matchIds).not.toContain('spotify:track:t3'); // Wrong key
     });
 
     test('handles negative BPM (should not filter by BPM)', () => {
       const negativeBpmTrack: CurrentTrack = {
         ...currentTrack,
-        audio_features: { tempo: -10, key: 9, mode: 0 }
+        audio_features: { tempo: -10, key: 9, mode: 0 },
       };
 
       const libraryWithVariousBpm: LibraryTrack[] = [
-        { track_id: 't1', track_name: 'Track 1', artist: 'A', camelot_key: '8A', bpm: 60 },
-        { track_id: 't2', track_name: 'Track 2', artist: 'B', camelot_key: '8A', bpm: 200 }
+        {
+          track_id: 'spotify:track:t1',
+          track_name: 'Track 1',
+          artist: 'A',
+          camelot_key: '8A',
+          bpm: 60,
+        },
+        {
+          track_id: 'spotify:track:t2',
+          track_name: 'Track 2',
+          artist: 'B',
+          camelot_key: '8A',
+          bpm: 200,
+        },
       ];
 
       const keys = getCompatibleKeys(negativeBpmTrack.camelot_key);
@@ -177,33 +255,63 @@ describe('Mixing Engine', () => {
 
       // Should match by key only, regardless of BPM
       const matchIds = matches.map(m => m.track_id);
-      expect(matchIds).toContain('t1');
-      expect(matchIds).toContain('t2');
+      expect(matchIds).toContain('spotify:track:t1');
+      expect(matchIds).toContain('spotify:track:t2');
     });
 
     test('filters BPM within ±10% range', () => {
       const track128Bpm: CurrentTrack = {
         ...currentTrack,
-        audio_features: { tempo: 128, key: 9, mode: 0 }
+        audio_features: { tempo: 128, key: 9, mode: 0 },
       };
 
       const libraryWithBpmRange: LibraryTrack[] = [
-        { track_id: 't1', track_name: 'Track 1', artist: 'A', camelot_key: '8A', bpm: 115.2 }, // 90% of 128
-        { track_id: 't2', track_name: 'Track 2', artist: 'B', camelot_key: '8A', bpm: 115.1 }, // Just below 90%
-        { track_id: 't3', track_name: 'Track 3', artist: 'C', camelot_key: '8A', bpm: 140.8 }, // 110% of 128
-        { track_id: 't4', track_name: 'Track 4', artist: 'D', camelot_key: '8A', bpm: 140.9 }, // Just above 110%
-        { track_id: 't5', track_name: 'Track 5', artist: 'E', camelot_key: '8A', bpm: 128 } // Exact match
+        {
+          track_id: 'spotify:track:t1',
+          track_name: 'Track 1',
+          artist: 'A',
+          camelot_key: '8A',
+          bpm: 115.2,
+        }, // 90% of 128
+        {
+          track_id: 'spotify:track:t2',
+          track_name: 'Track 2',
+          artist: 'B',
+          camelot_key: '8A',
+          bpm: 115.1,
+        }, // Just below 90%
+        {
+          track_id: 'spotify:track:t3',
+          track_name: 'Track 3',
+          artist: 'C',
+          camelot_key: '8A',
+          bpm: 140.8,
+        }, // 110% of 128
+        {
+          track_id: 'spotify:track:t4',
+          track_name: 'Track 4',
+          artist: 'D',
+          camelot_key: '8A',
+          bpm: 140.9,
+        }, // Just above 110%
+        {
+          track_id: 'spotify:track:t5',
+          track_name: 'Track 5',
+          artist: 'E',
+          camelot_key: '8A',
+          bpm: 128,
+        }, // Exact match
       ];
 
       const keys = getCompatibleKeys(track128Bpm.camelot_key);
       const matches = filterMatches(track128Bpm, libraryWithBpmRange, keys);
 
       const matchIds = matches.map(m => m.track_id);
-      expect(matchIds).toContain('t1'); // Within range
-      expect(matchIds).not.toContain('t2'); // Below range
-      expect(matchIds).toContain('t3'); // Within range
-      expect(matchIds).not.toContain('t4'); // Above range
-      expect(matchIds).toContain('t5'); // Exact match
+      expect(matchIds).toContain('spotify:track:t1'); // Within range
+      expect(matchIds).not.toContain('spotify:track:t2'); // Below range
+      expect(matchIds).toContain('spotify:track:t3'); // Within range
+      expect(matchIds).not.toContain('spotify:track:t4'); // Above range
+      expect(matchIds).toContain('spotify:track:t5'); // Exact match
     });
 
     test('handles empty library', () => {
@@ -214,8 +322,20 @@ describe('Mixing Engine', () => {
 
     test('handles library with no compatible keys', () => {
       const libraryNoMatch: LibraryTrack[] = [
-        { track_id: 't1', track_name: 'Track 1', artist: 'A', camelot_key: '1A', bpm: 128 },
-        { track_id: 't2', track_name: 'Track 2', artist: 'B', camelot_key: '2A', bpm: 128 }
+        {
+          track_id: 'spotify:track:t1',
+          track_name: 'Track 1',
+          artist: 'A',
+          camelot_key: '1A',
+          bpm: 128,
+        },
+        {
+          track_id: 'spotify:track:t2',
+          track_name: 'Track 2',
+          artist: 'B',
+          camelot_key: '2A',
+          bpm: 128,
+        },
       ];
 
       const keys = getCompatibleKeys(currentTrack.camelot_key);
@@ -227,7 +347,13 @@ describe('Mixing Engine', () => {
       // Create a track that matches multiple shift types
       // Since we iterate through compatibleKeys in order, it should get the first match
       const libraryMultiMatch: LibraryTrack[] = [
-        { track_id: 't1', track_name: 'Track 1', artist: 'A', camelot_key: '8A', bpm: 128 } // Matches SMOOTH
+        {
+          track_id: 'spotify:track:t1',
+          track_name: 'Track 1',
+          artist: 'A',
+          camelot_key: '8A',
+          bpm: 128,
+        }, // Matches SMOOTH
       ];
 
       const keys = getCompatibleKeys(currentTrack.camelot_key);

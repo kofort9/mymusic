@@ -242,9 +242,7 @@ export class CustomApiProvider implements AudioFeatureProvider {
       // Parse musical key to key number and mode
       const keyInfo = parseMusicalKey(metadata.musical_key);
       if (!keyInfo) {
-        Logger.error(
-          `[${this.getName()}] Failed to parse musical key: ${metadata.musical_key}`
-        );
+        Logger.error(`[${this.getName()}] Failed to parse musical key: ${metadata.musical_key}`);
         return null;
       }
 

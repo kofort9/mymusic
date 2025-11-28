@@ -1,4 +1,3 @@
-
 export class Logger {
   private static logs: string[] = [];
   private static MAX_LOGS = 20;
@@ -22,12 +21,12 @@ export class Logger {
     // If error is passed, append its message if it wasn't already included in the message string
     let errStr = '';
     if (error && typeof error === 'object') {
-        const err = error as { message?: string };
-        if (err.message && !message.includes(err.message)) {
-             errStr = ` | ${err.message}`;
-        }
+      const err = error as { message?: string };
+      if (err.message && !message.includes(err.message)) {
+        errStr = ` | ${err.message}`;
+      }
     }
-    
+
     this.logs.push(`[${timestamp}] ERROR: ${message}${errStr}`);
     if (this.logs.length > this.MAX_LOGS) this.logs.shift();
   }
@@ -36,4 +35,3 @@ export class Logger {
     return this.logs;
   }
 }
-
