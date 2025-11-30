@@ -4,6 +4,7 @@ import { ProviderFactory } from './providers/factory';
 import { AudioFeatureProvider } from './providers/types';
 import { prisma } from './dbClient';
 import { convertToCamelot } from './camelot';
+import { checkIfTrackIsLiked } from './spotifyClient';
 
 // LRU Cache implementation with max size
 class LRUCache<K, V> {
@@ -152,6 +153,13 @@ async function passivelyEnrichDB(
   if (!features || !trackName || !artist) return;
 
   try {
+    // Check if track is in liked songs before enriching (v0.1.2+)
+    const isLiked = await checkIfTrackIsLiked(trackId);
+    if (!isLiked) {
+      logger.debug(`🎮 Pokédex: Skipping non-liked track: ${trackName} - ${artist}`);
+      return;
+    }
+
     // Check if track already exists
     const existing = await prisma.track.findUnique({
       where: { spotifyId: trackId },

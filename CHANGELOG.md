@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.1.2 — 2025-11-30
+
+### Fixed
+- **Passive Enrichment**: Now only saves liked songs to database (prevents DB bloat from random tracks)
+- **README**: Resolved merge conflict in "Data & Providers" section
+
+### Changed
+- Added `user-library-read` OAuth scope for liked songs verification
+- Users will need to re-authenticate on first run after upgrade (OAuth scope change)
+
+### Technical Details
+- New `checkIfTrackIsLiked()` function in `spotifyClient.ts`
+- Updated `passivelyEnrichDB()` to filter non-liked tracks before database writes
+- Error handling defaults to "not liked" for safety (prevents unnecessary enrichment)
+
+### Migration Notes
+- Previously saved non-liked songs will remain in DB but won't receive new passive enrichments
+- After update, delete `tokens.json` if re-authentication doesn't auto-trigger
+
 ## v0.1.1 — 2025-11-28
 - Bumped to `0.1.1` and refreshed README metadata (release banner, branch roles, tagging flow).
 - Added this changelog to surface release history for newcomers.

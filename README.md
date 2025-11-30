@@ -5,7 +5,7 @@
 [![License: ISC](https://img.shields.io/badge/License-ISC-0b9e8f?style=for-the-badge)](LICENSE)
 [![CLI Ready](https://img.shields.io/badge/TUI-ready-0f8b8d?style=for-the-badge&logo=gnometerminal&logoColor=white)](#run-the-tui)
 
-> Version: v0.1.1 · Release date: 2025-11-28 · Built with Cursor, Codex, and Antigravity.
+> Version: v0.1.2 · Release date: 2025-11-30 · Built with Cursor, Codex, and Antigravity.
 
 Terminal-based DJ co-pilot (`spotifydj`) that watches your current Spotify track and surfaces harmonic, BPM-safe transitions in a responsive “train board” UI.
 
@@ -28,8 +28,8 @@ Terminal-based DJ co-pilot (`spotifydj`) that watches your current Spotify track
 
 ## 🧾 Project Status
 
-- Current version: `v0.1.1` (package.json)
-- Release date: 2025-11-28
+- Current version: `v0.1.2` (package.json)
+- Release date: 2025-11-30
 - Branches: `main` (stable), `spotify-dj-cli` (development)
 - Built with Cursor + Codex + Antigravity
 
@@ -97,7 +97,7 @@ If you install globally via `npm install -g .`, the `prepare` hook builds `dist/
 ╔══════════════════════════════════════════════════════════════╗
 ║             ᯤ Spotify RT DJ Assistant (MVP)                  ║
 ╚══════════════════════════════════════════════════════════════╝
-Version: v0.1.1
+Version: v0.1.2
 
 💿  Strings Attached — Keys N Krates ⏺
     BPM: 126.0  •  Camelot: 8A
@@ -167,25 +167,18 @@ SongBPM / parse.bot ─────┘
 
 ## 🎚️ Data & Providers
 
-<<<<<<< HEAD
-- **🎮 Pokédex Method (Automatic)**: Just play music! The app auto-saves audio features to DB as you listen.
+- **🎮 Pokédex Method (Automatic)**: Just play music! The app auto-saves audio features to DB as you listen—but only for liked songs.
 - **Batch Enrichment (Optional)**: Run `npm run enrich:library` to batch-process tracks with missing features using the SongBPM API.
 - **Manual Library Refresh**: Export from Exportify, replace `Liked_Songs.csv`, then run `npm run refresh:library`.
 - **SongBPM Fallback**: Set `AUDIO_FEATURE_PROVIDER=spotify,custom` and add `CUSTOM_API_KEY` to `.env` for SongBPM integration (~100 calls/month on free tier).
+- **Provider Chain**: Order controlled by `AUDIO_FEATURE_PROVIDER` (e.g., `database,spotify,custom`).
 - The Prisma DB lives at `prisma/dev.db` by default; keep it out of commits.
 - Parse.bot SongBPM implementation details: see `PARSEBOT.md`.
-=======
-- The bundled seed uses an Exportify CSV. To refresh after adding songs, re-export from Exportify, replace `Liked_Songs.csv`, then run `npx prisma db seed` (or `npm run refresh:library`).
-- For on-demand enrichment of new songs, enable the parse.bot SongBPM provider (`AUDIO_FEATURE_PROVIDER=spotify,custom`). The free tier allows ~100 calls/month, so keep the DB cache populated to avoid hitting the limit.
-- Provider chain supports `database` as well; order is controlled by `AUDIO_FEATURE_PROVIDER` (e.g., `database,spotify,custom`).
-- The Prisma DB lives at `prisma/dev.db` by default; keep it out of commits.
-- Parse.bot SongBPM integration is implemented; `PARSEBOT.md` documents the scraper endpoints and expected responses.
 
 ## 🩺 Ops & Health
 
 - `npm start` also boots a lightweight Express server on `PORT` (default `3000`) exposing `/health` and `/ready` for monitoring.
 - Logs land in `combined.log` and `error.log`; the TUI debug pane shows the in-memory tail for quick inspection.
->>>>>>> origin/main
 
 ## 🧰 Tech Stack
 
