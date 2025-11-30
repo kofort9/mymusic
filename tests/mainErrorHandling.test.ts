@@ -1,4 +1,4 @@
-const renderTrainBoardMock = jest.fn();
+const renderTrainBoardMock = jest.fn().mockReturnValue({ clampedOffset: 0, maxScroll: 0 });
 const renderNarrowWarningMock = jest.fn();
 
 jest.mock('../src/auth', () => ({
@@ -30,8 +30,12 @@ jest.mock('../src/display', () => ({
   PhraseCounter: jest.fn().mockImplementation(() => ({
     calculate: jest.fn().mockReturnValue(null),
   })),
-  renderTrainBoard: (...args: any[]) => renderTrainBoardMock(...args),
-  renderNarrowWarning: (...args: any[]) => renderNarrowWarningMock(...args),
+  TerminalRenderer: jest.fn().mockImplementation(() => ({
+    renderTrainBoard: (...args: any[]) => renderTrainBoardMock(...args),
+    renderNarrowWarning: (...args: any[]) => renderNarrowWarningMock(...args),
+    resetFrameCache: jest.fn(),
+    writeFrame: jest.fn(),
+  })),
 }));
 
 jest.mock('../src/animation', () => ({
@@ -73,7 +77,9 @@ jest.mock('../src/dbClient', () => ({
 let main: typeof import('../src/main').main;
 let loadLibrary: jest.MockedFunction<typeof import('../src/library').loadLibrary>;
 let authenticate: jest.MockedFunction<typeof import('../src/auth').authenticate>;
-let pollCurrentlyPlaying: jest.MockedFunction<typeof import('../src/spotifyClient').pollCurrentlyPlaying>;
+let pollCurrentlyPlaying: jest.MockedFunction<
+  typeof import('../src/spotifyClient').pollCurrentlyPlaying
+>;
 let getAudioFeatures: jest.MockedFunction<typeof import('../src/audioProcessor').getAudioFeatures>;
 let logger: typeof import('../src/utils/logger').logger;
 
@@ -121,7 +127,9 @@ describe('main error handling paths', () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(main()).rejects.toThrow('exit:1');
-    expect(logger.error).toHaveBeenCalledWith('Failed to load library:', { error: expect.any(Error) });
+    expect(logger.error).toHaveBeenCalledWith('Failed to load library:', {
+      error: expect.any(Error),
+    });
 
     exitSpy.mockRestore();
     stdoutSpy.mockRestore();
@@ -182,7 +190,9 @@ describe('main error handling paths', () => {
     const pollPromise = new Promise(resolve => {
       resolvePoll = resolve;
     });
-    (pollCurrentlyPlaying as jest.Mock).mockReturnValueOnce(pollPromise).mockResolvedValueOnce(null);
+    (pollCurrentlyPlaying as jest.Mock)
+      .mockReturnValueOnce(pollPromise)
+      .mockResolvedValueOnce(null);
 
     let resolveFeatures: (value: unknown) => void;
     const featuresPromise = new Promise(resolve => {
@@ -219,7 +229,9 @@ describe('main error handling paths', () => {
       call => call[0]?.track_id === 'spotify:track:123'
     );
     expect(trackRender).toBeTruthy();
-    expect((jest.requireMock('../src/mixingEngine').filterMatches as jest.Mock)).not.toHaveBeenCalled();
+    expect(
+      jest.requireMock('../src/mixingEngine').filterMatches as jest.Mock
+    ).not.toHaveBeenCalled();
 
     exitSpy.mockRestore();
     stdoutSpy.mockRestore();

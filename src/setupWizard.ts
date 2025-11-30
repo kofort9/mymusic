@@ -106,7 +106,10 @@ export async function runFirstRunWizard(libraryCount: number): Promise<void> {
         }
       }
     } else {
-      const alreadyExported = await promptYesNo(rl, 'Do you already have Liked_Songs.csv ready to drop here');
+      const alreadyExported = await promptYesNo(
+        rl,
+        'Do you already have Liked_Songs.csv ready to drop here'
+      );
       if (alreadyExported) {
         logInfo(`Place Liked_Songs.csv in ${cwd} and re-run npm start to refresh the library.`);
       }

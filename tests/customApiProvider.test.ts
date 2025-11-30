@@ -4,12 +4,32 @@ import {
   parseTimeSignature,
 } from '../src/providers/customApiProvider';
 
-// Mock the Logger to prevent console output during tests
-jest.mock('../src/logger', () => ({
-  Logger: {
-    log: jest.fn(),
-    error: jest.fn(),
+// Mock dependencies
+jest.mock('../src/utils/logger');
+jest.mock('../src/utils/RateLimiter');
+jest.mock('../src/utils/CircuitBreaker', () => ({
+  CircuitBreaker: jest.fn().mockImplementation(() => ({
+    execute: jest.fn().mockImplementation(fn => fn()),
+  })),
+}));
+jest.mock('../src/dbClient', () => ({
+  prisma: {
+    track: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
   },
+}));
+
+jest.mock('../src/utils/apiUsageTracker', () => ({
+  ApiUsageTracker: {
+    getInstance: jest.fn(),
+  },
+}));
+
+// Mock audioProcessor to avoid circular dependency issues and mock passive enrichment
+jest.mock('../src/audioProcessor', () => ({
+  passivelyEnrichDB: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Mock global fetch
@@ -181,6 +201,22 @@ describe('CustomApiProvider', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup ApiUsageTracker mock
+    const mockTracker = {
+      canMakeRequest: jest.fn().mockReturnValue(true),
+      recordRequest: jest.fn(),
+      increment: jest.fn(),
+      getCount: jest.fn().mockReturnValue(0),
+      getLimit: jest.fn().mockReturnValue(100),
+      getResetDate: jest.fn().mockReturnValue(new Date()),
+    };
+
+    // We need to re-require the module to pick up the mock if we were using doMock
+    // But since we're using standard jest.mock, let's try to override the implementation
+    const { ApiUsageTracker } = require('../src/utils/apiUsageTracker');
+    (ApiUsageTracker.getInstance as jest.Mock).mockReturnValue(mockTracker);
+
     process.env = {
       ...originalEnv,
       CUSTOM_API_KEY: 'test-api-key',

@@ -61,7 +61,9 @@ export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
 
         return pollCurrentlyPlaying(); // Retry once
       } catch (refreshError) {
-        logger.error('Session expired. Please restart to re-authenticate.', { error: refreshError });
+        logger.error('Session expired. Please restart to re-authenticate.', {
+          error: refreshError,
+        });
         return null;
       }
     }

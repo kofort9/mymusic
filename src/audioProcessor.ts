@@ -2,6 +2,8 @@ import { AudioFeatures, TrackID, AudioFeaturesSchema } from './types';
 import { logger } from './utils/logger';
 import { ProviderFactory } from './providers/factory';
 import { AudioFeatureProvider } from './providers/types';
+import { prisma } from './dbClient';
+import { convertToCamelot } from './camelot';
 
 // LRU Cache implementation with max size
 class LRUCache<K, V> {
@@ -105,6 +107,12 @@ export async function getAudioFeatures(
 
         logger.info(`Fetched: BPM=${features.tempo}, Key=${features.key}, Mode=${features.mode}`);
         featureCache.set(trackId, features);
+
+        // Passive enrichment: Auto-save to DB (Pokédex style!)
+        passivelyEnrichDB(trackId, trackName, artist, features).catch((err: Error) => {
+          logger.warn(`Passive enrichment failed for ${trackId}`, { error: err });
+        });
+
         return features;
       }
     } catch (error: unknown) {
@@ -128,4 +136,72 @@ export async function getAudioFeatures(
   }
 
   return null;
+}
+
+/**
+ * Passively enrich the database with audio features captured during playback.
+ * This runs in the background and doesn't block the main flow.
+ * Like a Pokédex - capture data as you play songs!
+ */
+async function passivelyEnrichDB(
+  trackId: TrackID,
+  trackName?: string,
+  artist?: string,
+  features?: AudioFeatures
+): Promise<void> {
+  if (!features || !trackName || !artist) return;
+
+  try {
+    // Check if track already exists
+    const existing = await prisma.track.findUnique({
+      where: { spotifyId: trackId },
+    });
+
+    // Only save if it doesn't exist or has incomplete features
+    if (!existing || existing.bpm === 0 || existing.key === -1) {
+      const camelotKey = convertToCamelot(features.key, features.mode);
+
+      await prisma.track.upsert({
+        where: { spotifyId: trackId },
+        update: {
+          bpm: features.tempo,
+          key: features.key,
+          mode: features.mode,
+          camelotKey,
+          timeSignature: features.time_signature || 4,
+          energy: features.energy || 0,
+          valence: features.valence || 0,
+          danceability: features.danceability || 0,
+          acousticness: features.acousticness || 0,
+          instrumentalness: features.instrumentalness || 0,
+          liveness: features.liveness || 0,
+          speechiness: features.speechiness || 0,
+        },
+        create: {
+          spotifyId: trackId,
+          title: trackName,
+          artist: artist,
+          album: 'Unknown', // We don't have album info here
+          camelotKey,
+          bpm: features.tempo,
+          key: features.key,
+          mode: features.mode,
+          timeSignature: features.time_signature || 4,
+          energy: features.energy || 0,
+          valence: features.valence || 0,
+          danceability: features.danceability || 0,
+          acousticness: features.acousticness || 0,
+          instrumentalness: features.instrumentalness || 0,
+          liveness: features.liveness || 0,
+          speechiness: features.speechiness || 0,
+          durationMs: 0, // We don't have duration here
+        },
+      });
+
+      logger.info(`📝 Passively enriched DB: ${trackName} - ${artist}`);
+    }
+  } catch (error) {
+    // Don't throw - this is background enrichment
+    logger.debug(`Passive enrichment skipped for ${trackId}`, { error });
+  }
 }

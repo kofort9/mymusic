@@ -48,14 +48,21 @@ async function main() {
           const mode = parseInt(row['Mode']);
           const bpm = parseFloat(row['Tempo']);
 
-          // Validate critical fields
-          if (isNaN(key) || isNaN(mode) || isNaN(bpm)) {
-            console.warn(`Skipping track ${spotifyId}: Invalid Key/Mode/BPM`);
+          // Use sentinel values for missing data (to be enriched later)
+          const finalKey = isNaN(key) ? -1 : key;
+          const finalMode = isNaN(mode) ? -1 : mode;
+          const finalBpm = isNaN(bpm) ? 0 : bpm;
+
+          // Only skip if we have NO identifying information
+          if (finalBpm === 0 && finalKey === -1) {
+            console.warn(
+              `Skipping track ${spotifyId}: No audio features available (will need enrichment)`
+            );
             errorCount++;
             continue;
           }
 
-          const camelotKey = convertToCamelot(key, mode);
+          const camelotKey = finalKey >= 0 && finalMode >= 0 ? convertToCamelot(finalKey, finalMode) : '';
 
           await prisma.track.upsert({
             where: { spotifyId },
@@ -64,9 +71,9 @@ async function main() {
               artist,
               album,
               camelotKey,
-              key,
-              mode,
-              bpm,
+              key: finalKey,
+              mode: finalMode,
+              bpm: finalBpm,
               energy: parseFloat(row['Energy']) || 0,
               valence: parseFloat(row['Valence']) || 0,
               danceability: parseFloat(row['Danceability']) || 0,
@@ -83,9 +90,9 @@ async function main() {
               artist,
               album,
               camelotKey,
-              key,
-              mode,
-              bpm,
+              key: finalKey,
+              mode: finalMode,
+              bpm: finalBpm,
               energy: parseFloat(row['Energy']) || 0,
               valence: parseFloat(row['Valence']) || 0,
               danceability: parseFloat(row['Danceability']) || 0,
