@@ -18,6 +18,13 @@ export async function checkIfTrackIsLiked(trackId: string): Promise<boolean> {
     // Extract just the ID if full URI is provided
     const cleanId = trackId.replace('spotify:track:', '');
     const response = await spotifyApi.containsMySavedTracks([cleanId]);
+
+    // Type guard: ensure response.body is an array
+    if (!Array.isArray(response.body)) {
+      logger.warn(`Unexpected response format from Spotify API for track: ${trackId}`);
+      return false;
+    }
+
     return response.body[0] ?? false;
   } catch (error) {
     logger.warn(`Failed to check if track is liked: ${trackId}`, { error });
