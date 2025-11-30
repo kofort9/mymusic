@@ -48,16 +48,20 @@ export const logger = winston.createLogger({
     ],
 });
 
-// If we're not in production then log to the `console` with the format:
-// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+// Console transport disabled to prevent interference with TUI
+// Logs are still written to files (error.log, combined.log) and memory (for debug mode)
+// If you need console logs for debugging, temporarily uncomment the block below:
+/*
 if (isDev) {
     logger.add(new winston.transports.Console({
         format: winston.format.combine(
             winston.format.colorize(),
             winston.format.simple()
         ),
+        stderrLevels: ['error', 'warn', 'info', 'debug', 'verbose', 'silly'],
     }));
 }
+*/
 
 export const addRequestId = (requestId: string) => {
     return logger.child({ requestId });

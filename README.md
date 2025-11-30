@@ -26,6 +26,7 @@ Terminal-based DJ co-pilot (`spotifydj`) that watches your current Spotify track
 
 - Smart Spotify polling with near-track-end detection (1s) and inline debug overlay (`--debug` flag).
 - Harmonic engine (Camelot wheel) + BPM guard (±10% for filtered tabs) with shift categories: Smooth, Mood Switch, Energy Up/Down, Rhythmic Breaker.
+- **🎮 Pokédex-style library building**: Auto-saves audio features to DB as you play songs - zero manual work required!
 - Multi-source audio features: Spotify (deprecated API), SongBPM/parse.bot fallback (`custom` provider), and local Prisma/SQLite cache.
 - Train-board TUI with flip-clock transitions, 40–60 char progress bar, 32-beat phrase meter (with non-4/4 guard), category tabs + scroll.
 - Aggressive caching + fallback chain in `audioProcessor` to avoid repeat network calls.
@@ -89,15 +90,17 @@ Version: v0.1.0-alpha
 ████████████████████████░░░░░░░░
 Beats Rem: 12.0 | Time: 5.7s
 
-⚡ Recommendations (Current: 126.0 BPM)
- [ALL]  Smooth  Mood Switch  Energy Up  Energy Down  Rhythmic/Dead-End Breaker
-  ▼ Smooth
-    [8A] Losing It - Fisher (125.9 BPM)  -0.1%
-    [9A] Breathe - CamelPhat (126.5 BPM) +0.4%
-  ▼ Mood Switch
-    [8B] Cola - CamelPhat (124.0 BPM)   -1.6%
-  ▼ Energy Up
-    [10A] Rave - Duke Dumont (127.9 BPM) +1.5%
+╔══════════════════════════════════════════════════════════════╗
+║⚡ Recommendations (Current: 126.0 BPM)                       ║
+║ ALL   Smooth   Mood Switch   Energy Up   Energy Down         ║
+║──────────────────────────────────────────────────────────────║
+║▼ Smooth                                                      ║
+║  [8A] Losing It - Fisher (125.9 BPM)                         ║
+║  [9A] Breathe - CamelPhat (126.5 BPM)                        ║
+║                                                              ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+kofifort@kHQ | w/s: scroll | tab: category | r: refresh | h: help
 ```
 
 ### Keyboard & Scripts
@@ -121,8 +124,15 @@ Beats Rem: 12.0 | Time: 5.7s
 | `npm run db:seed` | Import `Liked_Songs.csv` into SQLite |
 | `npm run db:setup` | Migrate + seed in one go |
 | `npm run refresh:library` | Rerun the seed after swapping in a fresh Exportify CSV |
+| `npm run enrich:library` | Manually batch-enrich tracks with missing audio features (Pokédex method runs automatically!) |
 | `npm test` / `npm run test:coverage` | Jest unit tests + coverage |
 | `npm run lint` / `npm run format` | Lint or format the TypeScript codebase |
+
+## 📚 Documentation
+
+- [**Test Coverage**](docs/TEST_COVERAGE.md): Current coverage report and testing strategy.
+- [**Technical Debt**](docs/TECH_DEBT.md): Known issues, deprecation risks, and refactoring needs.
+- [**Improvements & Roadmap**](docs/IMPROVEMENTS.md): Future plans, feature ideas, and recently completed items.
 
 ## 🧭 Architecture at a Glance
 
@@ -140,18 +150,25 @@ SongBPM / parse.bot ─────┘
 
 ## 🎚️ Data & Providers
 
-- The bundled seed uses an Exportify CSV. To refresh after adding songs, re-export from Exportify, replace `Liked_Songs.csv`, then run `npx prisma db seed` (or `npm run refresh:library`).
-- If you prefer on-demand enrichment for new songs, enable the parse.bot SongBPM provider (`AUDIO_FEATURE_PROVIDER=spotify,custom`). The free tier allows ~100 calls/month, so keep the DB cache populated to avoid hitting the limit.
+- **🎮 Pokédex Method (Automatic)**: Just play music! The app auto-saves audio features to DB as you listen.
+- **Batch Enrichment (Optional)**: Run `npm run enrich:library` to batch-process tracks with missing features using the SongBPM API.
+- **Manual Library Refresh**: Export from Exportify, replace `Liked_Songs.csv`, then run `npm run refresh:library`.
+- **SongBPM Fallback**: Set `AUDIO_FEATURE_PROVIDER=spotify,custom` and add `CUSTOM_API_KEY` to `.env` for SongBPM integration (~100 calls/month on free tier).
 - The Prisma DB lives at `prisma/dev.db` by default; keep it out of commits.
-- Parse.bot SongBPM implementation plan lives in `PARSEBOT.md` (integration is not enabled by default).
+- Parse.bot SongBPM implementation details: see `PARSEBOT.md`.
 
-## 🛠️ Tech Stack
+## 🧰 Tech Stack
 
 TypeScript + Node.js, Spotify Web API, Prisma/SQLite, chalk/ANSI TUI.
 
-## ⚠️ Spotify Audio Features Deprecation
+## ⚠️ Spotify Audio Features Deprecation - MITIGATED ✅
 
-Spotify’s `/audio-features` endpoint is deprecated. Set `AUDIO_FEATURE_PROVIDER=spotify,custom` to fall back to SongBPM (parse.bot) or extend `src/providers/customApiProvider.ts` for your own source.
+Spotify's `/audio-features` endpoint is deprecated. **Solution**: The app uses "passive enrichment" - it automatically saves audio features to your local DB as you play music. Like a Pokédex!
+
+Additional options:
+- Set `AUDIO_FEATURE_PROVIDER=spotify,custom` to enable SongBPM fallback
+- Run `npm run enrich:library` for batch processing
+- Press `f` during playback to fetch features for current track
 
 ## 🧰 Troubleshooting
 

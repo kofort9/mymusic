@@ -1,4 +1,4 @@
-const renderTrainBoardMock = jest.fn();
+const renderTrainBoardMock = jest.fn().mockReturnValue({ clampedOffset: 0, maxScroll: 0 });
 const renderNarrowWarningMock = jest.fn();
 
 jest.mock('../src/auth', () => ({
@@ -30,8 +30,12 @@ jest.mock('../src/display', () => ({
   PhraseCounter: jest.fn().mockImplementation(() => ({
     calculate: jest.fn().mockReturnValue(null),
   })),
-  renderTrainBoard: (...args: any[]) => renderTrainBoardMock(...args),
-  renderNarrowWarning: (...args: any[]) => renderNarrowWarningMock(...args),
+  TerminalRenderer: jest.fn().mockImplementation(() => ({
+    renderTrainBoard: (...args: any[]) => renderTrainBoardMock(...args),
+    renderNarrowWarning: (...args: any[]) => renderNarrowWarningMock(...args),
+    resetFrameCache: jest.fn(),
+    writeFrame: jest.fn(),
+  })),
 }));
 
 jest.mock('../src/animation', () => ({
@@ -118,7 +122,7 @@ describe('main error handling paths', () => {
       throw new Error(`exit:${code}`);
     }) as never);
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
     await expect(main()).rejects.toThrow('exit:1');
     expect(logger.error).toHaveBeenCalledWith('Failed to load library:', { error: expect.any(Error) });
@@ -136,7 +140,7 @@ describe('main error handling paths', () => {
       throw new Error(`exit:${code}`);
     }) as never);
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
     await expect(main()).rejects.toThrow('exit:1');
     expect(logger.error).toHaveBeenCalledWith(

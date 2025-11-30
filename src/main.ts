@@ -4,16 +4,18 @@ import { getAudioFeatures } from './audioProcessor';
 import { convertToCamelot } from './camelot';
 import { loadLibrary } from './library';
 import { getCompatibleKeys, filterMatches } from './mixingEngine';
-import { PhraseCounter, renderNarrowWarning, renderTrainBoard } from './display';
+import { PhraseCounter, TerminalRenderer } from './display';
 import { CurrentTrack, MatchedTrack, ShiftType, LibraryTrack } from './types';
 import { refreshLibrary } from './refreshLibrary';
 import * as readline from 'readline';
 import { logger, getLogs } from './utils/logger';
-import { runFlipClockAnimation } from './animation';
 import { disconnectPrisma } from './dbClient';
 import { runFirstRunWizard } from './setupWizard';
 import { startServer } from './server';
 import { POLLING, UI } from './constants';
+import { validateLibrary, displayValidationSummary } from './startup/validateLibrary';
+import { enrichLibrary } from './scripts/enrichLibrary';
+import { ApiUsageTracker } from './utils/apiUsageTracker';
 
 export function isTerminalTooNarrow(width?: number): boolean {
   const terminalWidth = width ?? process.stdout.columns ?? UI.MIN_TERMINAL_WIDTH;
@@ -28,6 +30,7 @@ async function main() {
   }
 
   logger.info('Initializing Real-Time DJ Assistant...');
+  process.stdout.write('\x1b[?25l'); // Hide cursor immediately
   startServer();
 
   let library: LibraryTrack[] = [];
@@ -51,6 +54,15 @@ async function main() {
     process.exit(1);
   }
 
+  // Startup validation: check library status
+  try {
+    const validationResult = await validateLibrary();
+    displayValidationSummary(validationResult);
+    logger.info('Library validation complete');
+  } catch (error) {
+    logger.warn('Library validation failed (non-fatal)', { error });
+  }
+
   if (process.stdin.setRawMode) {
     process.stdin.setRawMode(true);
   }
@@ -60,7 +72,7 @@ async function main() {
   let recommendations: MatchedTrack[] = [];
   let lastTrackId: string | null = null;
   const phraseCounter = new PhraseCounter();
-  let isAnimating = false;
+  const renderer = new TerminalRenderer();
 
   let showExitWarning = false;
   let exitWarningTimeout: NodeJS.Timeout | null = null;
@@ -70,6 +82,7 @@ async function main() {
   let isRefreshingLibrary = false;
   let showHelp = false;
   let isShuttingDown = false;
+  let hasMissingFeatures = false; // Track if current track is missing features
 
   // UI State
   let selectedCategory: ShiftType | 'ALL' = 'ALL';
@@ -194,6 +207,53 @@ async function main() {
     }
   };
 
+  const enrichCurrentTrack = async () => {
+    if (!currentTrack || !hasMissingFeatures) return;
+
+    debugMessage = 'Fetching audio features from SongBPM...';
+    renderCurrentState();
+
+    try {
+      const result = await enrichLibrary({
+        limit: 1,
+        interactive: false,
+      });
+
+      // Reload library to get the enriched track
+      library = await loadLibrary();
+
+      // Re-fetch features for current track
+      const features = await getAudioFeatures(
+        currentTrack.track_id,
+        currentTrack.track_name,
+        currentTrack.artist
+      );
+
+      if (features) {
+        const camelotKey = convertToCamelot(features.key, features.mode);
+        currentTrack = {
+          ...currentTrack,
+          camelot_key: camelotKey,
+          audio_features: features,
+        };
+
+        const compatibleKeys = getCompatibleKeys(camelotKey);
+        const useRelaxedFilter = selectedCategory === 'ALL';
+        recommendations = filterMatches(currentTrack, library, compatibleKeys, useRelaxedFilter);
+
+        hasMissingFeatures = false;
+        debugMessage = `Features enriched! BPM: ${features.tempo}, Key: ${camelotKey}`;
+      } else {
+        debugMessage = 'Enrichment failed. Check API limit or try again.';
+      }
+    } catch (error) {
+      const e = error as Error;
+      debugMessage = `Enrichment error: ${e.message || 'Unknown'}`;
+    }
+
+    renderCurrentState();
+  };
+
   // Keypress Handler
   const onKeypress = (str: string, key: readline.Key) => {
     if (isShuttingDown) return;
@@ -229,6 +289,9 @@ async function main() {
     } else if (key.name === 'h') {
       showHelp = !showHelp;
       renderCurrentState();
+    } else if (key.name === 'f' && hasMissingFeatures && currentTrack) {
+      // Fetch missing features interactively
+      void enrichCurrentTrack();
     }
   };
 
@@ -243,7 +306,7 @@ async function main() {
     // Check minimum terminal width
     const terminalWidth = process.stdout.columns || UI.MIN_TERMINAL_WIDTH;
     if (isTerminalTooNarrow(terminalWidth)) {
-      renderNarrowWarning(terminalWidth);
+      renderer.renderNarrowWarning(terminalWidth);
       return;
     }
 
@@ -272,12 +335,26 @@ async function main() {
     if (!currentTrack) {
       notices.push('No playback detected on Spotify. Start a track to see harmonic matches.');
     } else if (!hasTempo || !hasCamelot || !libHasTempo || !libHasCamelot) {
-      notices.push(
-        'Missing BPM/Key for current track. Press r to refresh library or enable SongBPM fallback in .env.'
-      );
+      if (hasMissingFeatures) {
+        const tracker = ApiUsageTracker.getInstance();
+        const remaining = tracker.getRemaining();
+        notices.push(
+          `⚠️  Missing BPM/Key for current track. Press 'f' to fetch from SongBPM (${remaining}/100 API calls remaining)`
+        );
+      } else {
+        notices.push(
+          'Missing BPM/Key for current track. Press r to refresh library or enable SongBPM fallback in .env.'
+        );
+      }
     }
 
-    renderTrainBoard(
+    // Reset frame cache when track changes to prevent duplicate displays
+    if (currentTrackId !== lastTrackId) {
+      renderer.resetFrameCache();
+      lastTrackId = currentTrackId || null;
+    }
+
+    const { clampedOffset } = renderer.renderTrainBoard(
       currentTrack,
       recommendations,
       phraseInfo,
@@ -287,8 +364,10 @@ async function main() {
       selectedCategory,
       scrollOffset,
       showHelp,
-      notices
+      notices,
+      library.length
     );
+    scrollOffset = clampedOffset;
   };
 
   // Smart Polling Logic
@@ -301,7 +380,6 @@ async function main() {
 
       if (trackData) {
         if (trackData.track_id !== lastTrackId) {
-          const isNewTrack = lastTrackId !== null; // Don't animate on first load
           lastTrackId = trackData.track_id;
           const features = await getAudioFeatures(
             trackData.track_id,
@@ -324,41 +402,6 @@ async function main() {
               timestamp: Date.now(),
             };
 
-            // Run flip-clock animation for track transitions
-            if (isNewTrack && !isAnimating) {
-              isAnimating = true;
-              await runFlipClockAnimation(
-                newTrack.track_name,
-                newTrack.artist,
-                (animatedTrack, animatedArtist) => {
-                  const animatedCurrentTrack = {
-                    ...newTrack,
-                    track_name: animatedTrack,
-                    artist: animatedArtist,
-                  };
-                  const tempCompatibleKeys = getCompatibleKeys(camelotKey);
-                  const tempRecommendations = filterMatches(
-                    animatedCurrentTrack,
-                    library,
-                    tempCompatibleKeys,
-                    selectedCategory === 'ALL'
-                  );
-                  renderTrainBoard(
-                    animatedCurrentTrack,
-                    tempRecommendations,
-                    null,
-                    showExitWarning,
-                    debugMessage,
-                    isDebugMode ? getLogs() : [],
-                    selectedCategory,
-                    scrollOffset,
-                    showHelp
-                  );
-                }
-              );
-              isAnimating = false;
-            }
-
             currentTrack = newTrack;
             const compatibleKeys = getCompatibleKeys(camelotKey);
             const useRelaxedFilter = selectedCategory === 'ALL';
@@ -368,9 +411,11 @@ async function main() {
               compatibleKeys,
               useRelaxedFilter
             );
+            hasMissingFeatures = false; // Successfully got features
           } else {
             currentTrack = trackData;
             recommendations = [];
+            hasMissingFeatures = true; // No features found
             debugMessage = `Audio Features missing for ID: ${trackData.track_id}. Check logs.`;
           }
         } else if (currentTrack) {
@@ -447,7 +492,6 @@ async function main() {
 
   // Initial clear
   process.stdout.write('\x1b[2J\x1b[0f');
-  process.stdout.write('\x1b[?25l');
 }
 
 if (require.main === module) {

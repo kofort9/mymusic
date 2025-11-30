@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { RateLimiter } from '../utils/RateLimiter';
 import { AudioFeatureProvider } from './types';
+import { ApiUsageTracker } from '../utils/apiUsageTracker';
 
 const songBpmBreaker = new CircuitBreaker('SongBPM', {
   failureThreshold: 5,
@@ -151,8 +152,17 @@ export class CustomApiProvider implements AudioFeatureProvider {
    * Make an API request to the SongBPM parse.bot endpoint
    */
   private async makeRequest<T>(endpoint: string, body: Record<string, string>): Promise<T> {
+    // Check API usage before making request
+    const tracker = ApiUsageTracker.getInstance();
+    if (!tracker.canMakeRequest()) {
+      const resetDate = tracker.getResetDate().toLocaleDateString();
+      throw new Error(
+        `SongBPM API limit reached (${tracker.getCount()}/${tracker.getLimit()}). Resets on ${resetDate}`
+      );
+    }
+
     await songBpmLimiter.waitForToken();
-    return songBpmBreaker.execute(async () => {
+    const result = await songBpmBreaker.execute(async () => {
       const url = `${this.API_BASE_URL}/${endpoint}`;
 
       const response = await fetch(url, {
@@ -170,6 +180,10 @@ export class CustomApiProvider implements AudioFeatureProvider {
 
       return response.json() as Promise<T>;
     });
+
+    // Record successful request
+    tracker.recordRequest();
+    return result;
   }
 
   /**

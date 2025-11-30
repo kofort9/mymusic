@@ -9,3 +9,4 @@ prisma/*.db
 .vscode
 .idea
 .venv
+.api_usage.json

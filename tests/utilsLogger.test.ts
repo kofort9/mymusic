@@ -14,10 +14,10 @@ describe('utils/logger', () => {
     jest.resetModules();
   });
 
-  test('adds console transport in non-production', () => {
+  test('omits console transport in development to prevent TUI interference', () => {
     const { logger } = reloadLogger('development');
     const hasConsole = logger.transports.some((t: any) => t.name === 'console');
-    expect(hasConsole).toBe(true);
+    expect(hasConsole).toBe(false);
   });
 
   test('omits console transport in production', () => {
