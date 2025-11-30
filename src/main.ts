@@ -49,8 +49,12 @@ async function main() {
     logger.info('Authenticated with Spotify.');
   } catch (error) {
     logger.error('Authentication failed. Check your Spotify credentials and try again.', { error });
-    console.error('\nAuthentication failed. Ensure SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI are set in .env and re-run `npm start`.');
-    console.error('If prompted, complete the browser login to Spotify so tokens.json can be saved locally.\n');
+    console.error(
+      '\nAuthentication failed. Ensure SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI are set in .env and re-run `npm start`.'
+    );
+    console.error(
+      'If prompted, complete the browser login to Spotify so tokens.json can be saved locally.\n'
+    );
     process.exit(1);
   }
 
@@ -327,7 +331,9 @@ async function main() {
       ? library.find(track => track.track_id === currentTrackId)
       : undefined;
 
-    const hasTempo = Boolean(currentTrack?.audio_features?.tempo && currentTrack.audio_features.tempo > 0);
+    const hasTempo = Boolean(
+      currentTrack?.audio_features?.tempo && currentTrack.audio_features.tempo > 0
+    );
     const hasCamelot = Boolean(currentTrack?.camelot_key);
     const libHasTempo = Boolean(libraryMatch?.bpm && libraryMatch.bpm > 0);
     const libHasCamelot = Boolean(libraryMatch?.camelot_key);
@@ -435,7 +441,8 @@ async function main() {
           if (remainingMs <= POLLING.TRANSITION_THRESHOLD) {
             // Near end: Poll fast to catch transition
             nextPollDelay = POLLING.FAST_INTERVAL;
-          } else if (remainingMs > 20000) {            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
+          } else if (remainingMs > 20000) {
+            // Long time remaining: Poll slower (but cap at MAX to catch manual skips)
             nextPollDelay = POLLING.MAX_INTERVAL;
           } else {
             // Medium time remaining: Poll halfway or standard
@@ -495,7 +502,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(error => {
     logger.error('Unhandled error in main loop:', { error });
     process.exit(1);
   });
@@ -507,7 +514,7 @@ process.on('unhandledRejection', (reason, promise) => {
   // process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   logger.error('Uncaught Exception:', { error });
   process.exit(1);
 });

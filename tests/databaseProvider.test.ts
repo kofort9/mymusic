@@ -108,11 +108,11 @@ describe('DatabaseProvider', () => {
       timeoutError.name = 'PrismaClientInitializationError';
       mockTrackModel.findUnique.mockRejectedValue(timeoutError);
 
-    const provider = new DatabaseProvider();
-    const result = await provider.getAudioFeatures('spotify:track:timeout');
+      const provider = new DatabaseProvider();
+      const result = await provider.getAudioFeatures('spotify:track:timeout');
 
-    expect(result).toBeNull();
-  });
+      expect(result).toBeNull();
+    });
 
     test('handles database connection refused error', async () => {
       const connectionError = new Error("Can't reach database server");
@@ -129,11 +129,11 @@ describe('DatabaseProvider', () => {
       const lockedError = new Error('database is locked');
       mockTrackModel.findUnique.mockRejectedValue(lockedError);
 
-    const provider = new DatabaseProvider();
-    const result = await provider.getAudioFeatures('spotify:track:locked');
+      const provider = new DatabaseProvider();
+      const result = await provider.getAudioFeatures('spotify:track:locked');
 
-    expect(result).toBeNull();
-  });
+      expect(result).toBeNull();
+    });
 
     test('handles network error during database query', async () => {
       const networkError = new Error('Network request failed');

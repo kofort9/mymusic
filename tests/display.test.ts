@@ -35,9 +35,7 @@ const extractLastBar = (text: string): string => {
 };
 const extractPhraseBar = (text: string): string | undefined => {
   const clean = stripAnsi(text);
-  return clean
-    .split('\n')
-    .find(line => line.includes('█'));
+  return clean.split('\n').find(line => line.includes('█'));
 };
 const findFirstBarColored = (text: string): string | undefined =>
   text.split('\n').find(line => line.includes('█'));

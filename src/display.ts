@@ -145,7 +145,7 @@ export class TerminalRenderer {
       notices,
       totalTracksInLibrary,
       frameWidth: uiWidth,
-      terminalHeight
+      terminalHeight,
     };
 
     const lines: string[] = [];
@@ -202,7 +202,11 @@ export class TerminalRenderer {
     let logLines: string[] = [];
     if (logs.length > 0) {
       const separator = '─'.repeat(Math.max(62, uiWidth - 2));
-      logLines = ['', `${colors.dim}${separator}${colors.reset}`, `${colors.bright}${colors.red}DEBUG LOGS:${colors.reset}`];
+      logLines = [
+        '',
+        `${colors.dim}${separator}${colors.reset}`,
+        `${colors.bright}${colors.red}DEBUG LOGS:${colors.reset}`,
+      ];
       logs.forEach(log => logLines.push(`${colors.dim}${log}${colors.reset}`));
       reservedLines += logLines.length;
     }
@@ -219,7 +223,10 @@ export class TerminalRenderer {
     const maxScroll = Math.max(0, totalContentLines - availableForContent);
     if (scrollOffset > maxScroll) scrollOffset = maxScroll;
 
-    const visibleContentLines = contentLines.slice(scrollOffset, scrollOffset + availableForContent);
+    const visibleContentLines = contentLines.slice(
+      scrollOffset,
+      scrollOffset + availableForContent
+    );
 
     // Render Recommendations
     if (availableTotal >= fixedRecLinesCount) {

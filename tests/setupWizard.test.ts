@@ -41,7 +41,7 @@ describe('runFirstRunWizard', () => {
 
     await runFirstRunWizard(10);
 
-    expect((readline.createInterface as jest.Mock)).not.toHaveBeenCalled();
+    expect(readline.createInterface as jest.Mock).not.toHaveBeenCalled();
     expect(refreshLibrary).not.toHaveBeenCalled();
   });
 
@@ -53,7 +53,7 @@ describe('runFirstRunWizard', () => {
     );
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(0);
 
@@ -71,7 +71,7 @@ describe('runFirstRunWizard', () => {
     const question = jest.fn((_q: string, cb: (answer: string) => void) => cb('n'));
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(0);
 
@@ -100,7 +100,7 @@ describe('runFirstRunWizard', () => {
     const question = jest.fn((_q: string, cb: (answer: string) => void) => cb('n'));
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(0);
 
@@ -121,8 +121,8 @@ describe('runFirstRunWizard', () => {
     process.env.WIZARD_SILENT = '0';
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'development';
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(0);
 
@@ -140,7 +140,7 @@ describe('runFirstRunWizard', () => {
     );
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(0);
 
@@ -159,7 +159,7 @@ describe('runFirstRunWizard', () => {
     );
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(1); // library exists
 
@@ -179,7 +179,7 @@ describe('runFirstRunWizard', () => {
     );
     const close = jest.fn();
     (readline.createInterface as jest.Mock).mockReturnValue({ question, close });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     await runFirstRunWizard(1); // library exists
 

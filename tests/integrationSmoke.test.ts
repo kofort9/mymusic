@@ -11,16 +11,14 @@ jest.mock('../src/camelotColors', () => ({
 jest.mock('../package.json', () => ({ version: '0.0.0-smoke' }), { virtual: true });
 
 describe('Integration Smoke', () => {
-  const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+  const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   const outputBuffer: string[] = [];
-  const stdoutWriteSpy = jest
-    .spyOn(process.stdout, 'write')
-    .mockImplementation(chunk => {
-      if (chunk !== undefined && chunk !== null) {
-        outputBuffer.push(chunk.toString());
-      }
-      return true;
-    });
+  const stdoutWriteSpy = jest.spyOn(process.stdout, 'write').mockImplementation(chunk => {
+    if (chunk !== undefined && chunk !== null) {
+      outputBuffer.push(chunk.toString());
+    }
+    return true;
+  });
 
   afterEach(() => {
     jest.clearAllMocks();

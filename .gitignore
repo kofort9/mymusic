@@ -10,3 +10,4 @@ prisma/*.db
 .idea
 .venv
 .api_usage.json
+node_modules
