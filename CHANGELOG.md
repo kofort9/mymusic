@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.0 — 2025-11-30
+
+### Changed
+- **Architecture Refactor**: Split `main.ts` into modular components:
+  - `Orchestrator`: Manages application state and polling loop
+  - `InputHandler`: Handles keyboard events
+  - `RenderLoop`: Manages UI rendering
+  - `AppState`: Shared state interface
+- **Code Quality**: Reduced `main.ts` complexity and improved testability
+- **Stability**: Fixed race conditions in shutdown logic
+
 ## v0.1.3 — 2025-11-30
 
 ### Added

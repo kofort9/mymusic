@@ -1,4 +1,5 @@
-import { main, isTerminalTooNarrow } from '../src/main';
+import { main } from '../src/main';
+import { isTerminalTooNarrow } from '../src/utils/terminal';
 
 jest.useFakeTimers();
 
@@ -129,7 +130,7 @@ describe('Main integration loop', () => {
       })
       .mockResolvedValueOnce(null);
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const mainPromise = main();
@@ -167,7 +168,7 @@ describe('Main integration loop', () => {
 
   test('narrow terminal bypasses renderTrainBoard', async () => {
     Object.defineProperty(process.stdout, 'columns', { writable: true, value: 60 });
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const mainPromise = main();

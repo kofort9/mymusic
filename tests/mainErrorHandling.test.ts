@@ -124,7 +124,7 @@ describe('main error handling paths', () => {
       throw new Error(`exit:${code}`);
     }) as never);
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
     await expect(main()).rejects.toThrow('exit:1');
     expect(logger.error).toHaveBeenCalledWith('Failed to load library:', {
@@ -144,7 +144,7 @@ describe('main error handling paths', () => {
       throw new Error(`exit:${code}`);
     }) as never);
     const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
     await expect(main()).rejects.toThrow('exit:1');
     expect(logger.error).toHaveBeenCalledWith(
@@ -172,6 +172,8 @@ describe('main error handling paths', () => {
     await Promise.resolve(); // allow initial poll loop to process
     await jest.advanceTimersByTimeAsync(150); // let UI loop render with debug message
     process.emit('SIGINT');
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
 
     const debugCall = renderTrainBoardMock.mock.calls.find(
@@ -223,6 +225,8 @@ describe('main error handling paths', () => {
     await jest.advanceTimersByTimeAsync(800);
     expect(renderTrainBoardMock).toHaveBeenCalled();
     process.emit('SIGINT');
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
 
     const trackRender = renderTrainBoardMock.mock.calls.find(
