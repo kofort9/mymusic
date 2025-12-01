@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.2.0 — 2025-11-30
+
+### Changed
+- **Architecture Refactor**: Split `main.ts` into modular components:
+  - `Orchestrator`: Manages application state and polling loop
+  - `InputHandler`: Handles keyboard events
+  - `RenderLoop`: Manages UI rendering
+  - `AppState`: Shared state interface
+- **Code Quality**: Reduced `main.ts` complexity and improved testability
+- **Stability**: Fixed race conditions in shutdown logic
+
+## v0.1.3 — 2025-11-30
+
+### Added
+- **Test Coverage**: 25 new tests for liked songs filtering functionality
+  - 12 unit tests for `checkIfTrackIsLiked()` function
+  - 13 integration tests for passive enrichment filtering
+- Total test count increased from 287 to 312 tests (29 test suites)
+
+### Fixed
+- **Bug Fix**: `checkIfTrackIsLiked()` now includes type guard for API responses
+  - Prevents malformed responses from returning unexpected values
+  - Logs warning when Spotify API returns non-array response
+
+### Changed
+- Improved error handling and edge case coverage in passive enrichment
+
+### Technical Details
+- New test files:
+  - `tests/spotifyClient.likedCheck.test.ts` - Unit tests for liked songs check
+  - `tests/passiveEnrichment.test.ts` - Integration tests for passive enrichment
+- Added `Array.isArray()` type guard in `checkIfTrackIsLiked()`
+
 ## v0.1.2 — 2025-11-30
 
 ### Fixed
