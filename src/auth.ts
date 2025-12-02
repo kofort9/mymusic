@@ -52,6 +52,7 @@ const SCOPES = [
   'user-read-playback-state',
   'user-read-private',
   'user-read-email',
+  'user-library-read', // For checking if tracks are liked (v0.1.2+)
 ];
 
 export async function authenticate(): Promise<void> {

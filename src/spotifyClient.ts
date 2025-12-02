@@ -8,6 +8,23 @@ const spotifyBreaker = new CircuitBreaker('SpotifyAPI', {
   resetTimeout: 30000,
 });
 
+/**
+ * Check if a track is saved in the user's liked songs
+ * @param trackId Full Spotify URI (spotify:track:xxx) or just the track ID
+ * @returns Promise<boolean> - true if track is liked, false otherwise
+ */
+export async function checkIfTrackIsLiked(trackId: string): Promise<boolean> {
+  try {
+    // Extract just the ID if full URI is provided
+    const cleanId = trackId.replace('spotify:track:', '');
+    const response = await spotifyApi.containsMySavedTracks([cleanId]);
+    return response.body[0] ?? false;
+  } catch (error) {
+    logger.warn(`Failed to check if track is liked: ${trackId}`, { error });
+    return false; // Default to false on error (safer - don't enrich if uncertain)
+  }
+}
+
 export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
   try {
     return await spotifyBreaker.execute(async () => {
@@ -61,7 +78,9 @@ export async function pollCurrentlyPlaying(): Promise<CurrentTrack | null> {
 
         return pollCurrentlyPlaying(); // Retry once
       } catch (refreshError) {
-        logger.error('Session expired. Please restart to re-authenticate.', { error: refreshError });
+        logger.error('Session expired. Please restart to re-authenticate.', {
+          error: refreshError,
+        });
         return null;
       }
     }

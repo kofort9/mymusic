@@ -1,6 +1,6 @@
 {
   "name": "spotifydj",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "SpotifyDJ — real-time DJ assistant TUI for Spotify",
   "main": "dist/main.js",
   "bin": {
@@ -18,6 +18,7 @@
     "db:seed": "prisma db seed",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "refresh:library": "ts-node src/refreshLibrary.ts",
+    "enrich:library": "ts-node src/scripts/enrichLibrary.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -72,6 +73,8 @@
     "express": "^4.21.2",
     "open": "^8.4.2",
     "spotify-web-api-node": "^5.0.2",
+    "string-width": "^4.2.3",
+    "strip-ansi": "^6.0.1",
     "uuid": "^13.0.0",
     "winston": "^3.18.3",
     "zod": "^3.25.76"

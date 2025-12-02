@@ -1,5 +1,5 @@
 import { getCompatibleKeys, filterMatches } from '../src/mixingEngine';
-import { renderTrainBoard } from '../src/display';
+import { TerminalRenderer } from '../src/display';
 import { CurrentTrack, LibraryTrack } from '../src/types';
 
 // Mock camelotColors to avoid ANSI inconsistencies in assertions
@@ -13,14 +13,12 @@ jest.mock('../package.json', () => ({ version: '0.0.0-smoke' }), { virtual: true
 describe('Integration Smoke', () => {
   const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   const outputBuffer: string[] = [];
-  const stdoutWriteSpy = jest
-    .spyOn(process.stdout, 'write')
-    .mockImplementation(chunk => {
-      if (chunk !== undefined && chunk !== null) {
-        outputBuffer.push(chunk.toString());
-      }
-      return true;
-    });
+  const stdoutWriteSpy = jest.spyOn(process.stdout, 'write').mockImplementation(chunk => {
+    if (chunk !== undefined && chunk !== null) {
+      outputBuffer.push(chunk.toString());
+    }
+    return true;
+  });
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -66,7 +64,8 @@ describe('Integration Smoke', () => {
     const compatible = getCompatibleKeys(currentTrack.camelot_key);
     const recs = filterMatches(currentTrack, library, compatible, false);
 
-    renderTrainBoard(currentTrack, recs, null, false);
+    const renderer = new TerminalRenderer();
+    renderer.renderTrainBoard(currentTrack, recs, null, false);
 
     const output = outputBuffer.join('');
     expect(output).toContain('Recommendations');
